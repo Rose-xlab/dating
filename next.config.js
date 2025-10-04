@@ -1,10 +1,18 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  output: 'export',
-  eslint: {
-    ignoreDuringBuilds: true,
+  images: {
+    domains: ['localhost'],
   },
-  images: { unoptimized: true },
-};
+  experimental: {
+    serverActions: true,
+  },
+  webpack: (config) => {
+    config.resolve.fallback = {
+      ...config.resolve.fallback,
+      fs: false,
+    };
+    return config;
+  },
+}
 
-module.exports = nextConfig;
+module.exports = nextConfig
