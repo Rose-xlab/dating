@@ -1,23 +1,49 @@
-import React, { useState, useEffect } from 'react';
-import { AnalysisResult, Flag, SuggestedReply } from '@/types';
+//src\components\AnalysisDashboard.tsx
+
+import React, { useState } from 'react';
+import { AnalysisResult, Flag, FlagCategory } from '@/types';
 import { 
   ExclamationTriangleIcon, 
   CheckCircleIcon,
   ChartBarIcon,
-  ClockIcon,
-  ChatBubbleLeftRightIcon,
   ClipboardDocumentCheckIcon,
-  LightBulbIcon,
   XMarkIcon,
-  InformationCircleIcon
+  InformationCircleIcon,
+  ShieldCheckIcon,
+  ChatBubbleLeftEllipsisIcon,
+  ChatBubbleBottomCenterTextIcon,
 } from '@heroicons/react/24/outline';
 import { motion, AnimatePresence } from 'framer-motion';
 import ScoreIndicator from './ScoreIndicator';
-import Timeline from './Timeline';
-import ReciprocityChart from './ReciprocityChart';
 import ConsistencyReport from './ConsistencyReport';
-import ChatDisplay from './ChatDisplay';
 import toast from 'react-hot-toast';
+
+const FLAG_DETAILS_KNOWLEDGE = {
+  financial_ask: {
+    meaning: "This is a major indicator of a romance scam. Scammers often build an emotional connection before creating a fake emergency that requires you to send money, gift cards, or cryptocurrency.",
+    whatToDo: "Do not send money or share any financial information. It is highly recommended to cease communication and report the profile on the dating app.",
+    suggestedReply: {
+      content: "I'm not comfortable discussing financial matters or sending money. I don't think this is going to work out. I wish you the best.",
+      tone: "Direct and final"
+    }
+  },
+  love_bombing: {
+    meaning: "Love bombing is a manipulation tactic where someone showers you with excessive affection and attention very early on. This can be used to make you feel special and lower your guard for later manipulation or requests.",
+    whatToDo: "Slow down the pace of the conversation and maintain your personal boundaries. Be wary if they get angry or frustrated when you ask to take things slow.",
+    suggestedReply: {
+      content: "I'm really enjoying getting to know you, but I'd be more comfortable taking things one step at a time so we can build something genuine.",
+      tone: "Polite but firm"
+    }
+  },
+  off_platform_push: {
+    meaning: "Scammers and bad actors often try to move the conversation to an unmonitored platform like WhatsApp, Telegram, or text message. This is to avoid detection by the dating app's safety features.",
+    whatToDo: "Keep the conversation on the dating app until you are completely comfortable and have verified their identity (e.g., through a video call).",
+    suggestedReply: {
+      content: "I'd prefer to keep chatting here for a little while longer until we get to know each other better. I hope you understand!",
+      tone: "Friendly and cautious"
+    }
+  },
+};
 
 interface AnalysisDashboardProps {
   result: AnalysisResult;
@@ -25,33 +51,20 @@ interface AnalysisDashboardProps {
 }
 
 export default function AnalysisDashboard({ result, onClose }: AnalysisDashboardProps) {
-  const [activeTab, setActiveTab] = useState<'overview' | 'chat' | 'timeline' | 'details'>('overview');
-  const [selectedReplyTone, setSelectedReplyTone] = useState<'friendly' | 'neutral' | 'assertive'>('neutral');
-
-  // Debug logging
-  useEffect(() => {
-    console.log('Analysis Result:', result);
-    console.log('Timeline events:', result.timeline);
-    console.log('Active tab:', activeTab);
-  }, [result, activeTab]);
+  const [activeTab, setActiveTab] = useState<'overview' | 'details'>('overview');
 
   const redFlags = result.flags.filter(f => f.type === 'red');
   const greenFlags = result.flags.filter(f => f.type === 'green');
 
-  const copyReply = (reply: SuggestedReply) => {
-    navigator.clipboard.writeText(reply.content);
-    toast.success('Reply copied to clipboard!');
+  const copyToClipboard = (text: string) => {
+    navigator.clipboard.writeText(text);
+    toast.success('Copied to clipboard!');
   };
 
   const tabs = [
     { id: 'overview', label: 'Overview', icon: ChartBarIcon },
-    { id: 'chat', label: 'Chat Analysis', icon: ChatBubbleLeftRightIcon },
-    { id: 'timeline', label: 'Timeline', icon: ClockIcon },
     { id: 'details', label: 'Detailed Report', icon: ClipboardDocumentCheckIcon },
   ];
-
-  // Extract recommendations from evidence if available
-  const recommendations = result.evidence?.find(e => e.id === 'analysis-metadata')?.explanation?.match(/(\d+) recommendations/)?.[1];
 
   return (
     <motion.div
@@ -59,16 +72,18 @@ export default function AnalysisDashboard({ result, onClose }: AnalysisDashboard
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
       className="fixed inset-0 bg-gray-900/50 backdrop-blur-sm z-50 overflow-y-auto"
+      onClick={onClose}
     >
       <div className="min-h-screen flex items-center justify-center p-4">
         <motion.div
           initial={{ scale: 0.9, opacity: 0 }}
           animate={{ scale: 1, opacity: 1 }}
           exit={{ scale: 0.9, opacity: 0 }}
-          className="bg-white rounded-2xl shadow-xl max-w-6xl w-full max-h-[90vh] overflow-hidden flex flex-col"
+          className="bg-white rounded-2xl shadow-xl max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col"
+          onClick={(e) => e.stopPropagation()}
         >
           {/* Header */}
-          <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
+          <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between flex-shrink-0">
             <h2 className="text-2xl font-bold text-gray-900">Analysis Results</h2>
             <button
               onClick={onClose}
@@ -80,30 +95,21 @@ export default function AnalysisDashboard({ result, onClose }: AnalysisDashboard
           </div>
 
           {/* Tabs */}
-          <div className="px-6 pt-4 border-b border-gray-200">
+          <div className="px-6 pt-4 border-b border-gray-200 flex-shrink-0">
             <nav className="flex space-x-8" aria-label="Tabs">
               {tabs.map((tab) => (
                 <button
                   key={tab.id}
-                  onClick={() => {
-                    console.log(`Tab clicked: ${tab.id}`);
-                    setActiveTab(tab.id as any);
-                  }}
+                  onClick={() => setActiveTab(tab.id as any)}
                   className={`
                     pb-4 px-1 border-b-2 font-medium text-sm 
-                    transition-all duration-200 
                     flex items-center space-x-2 
-                    cursor-pointer
-                    focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500
                     ${
                       activeTab === tab.id
                         ? 'border-primary-500 text-primary-600'
                         : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                     }
                   `}
-                  role="tab"
-                  aria-selected={activeTab === tab.id}
-                  aria-controls={`tabpanel-${tab.id}`}
                 >
                   <tab.icon className="w-5 h-5" />
                   <span>{tab.label}</span>
@@ -113,7 +119,7 @@ export default function AnalysisDashboard({ result, onClose }: AnalysisDashboard
           </div>
 
           {/* Content */}
-          <div className="flex-1 overflow-y-auto p-6">
+          <div className="flex-1 overflow-y-auto p-6 bg-gray-50/50">
             <AnimatePresence mode="wait">
               {/* Overview Tab */}
               {activeTab === 'overview' && (
@@ -123,275 +129,81 @@ export default function AnalysisDashboard({ result, onClose }: AnalysisDashboard
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -20 }}
                   className="space-y-6"
-                  role="tabpanel"
-                  id="tabpanel-overview"
                 >
-                  {/* Score Cards */}
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    <ScoreIndicator
-                      label="Risk Score"
-                      score={result.riskScore}
-                      description="Higher scores indicate more red flags"
-                      type="risk"
-                    />
-                    <ScoreIndicator
-                      label="Trust Score"
-                      score={result.trustScore}
-                      description="Higher scores indicate more positive signals"
-                      type="trust"
-                    />
-                    <ScoreIndicator
-                      label="Escalation Index"
-                      score={result.escalationIndex}
-                      description="How quickly the conversation is progressing"
-                      type="escalation"
-                    />
+                    <ScoreIndicator label="Risk Score" score={result.riskScore} description="Higher scores indicate more red flags" type="risk" />
+                    <ScoreIndicator label="Trust Score" score={result.trustScore} description="Higher scores indicate more positive signals" type="trust" />
+                    <ScoreIndicator label="Escalation Index" score={result.escalationIndex} description="How quickly the conversation is progressing" type="escalation" />
                   </div>
-
-                  {/* Flags Summary */}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    {/* Red Flags */}
-                    <div className="bg-red-50 rounded-xl p-6">
-                      <h3 className="text-lg font-semibold text-red-900 mb-4 flex items-center">
-                        <ExclamationTriangleIcon className="w-6 h-6 mr-2" />
-                        Red Flags ({redFlags.length})
-                      </h3>
+                    <div className="bg-red-50/50 rounded-xl p-6 border border-red-100">
+                      <h3 className="text-lg font-semibold text-red-900 mb-4 flex items-center"><ExclamationTriangleIcon className="w-6 h-6 mr-2" />Red Flags ({redFlags.length})</h3>
                       {redFlags.length > 0 ? (
-                        <ul className="space-y-2">
-                          {redFlags.slice(0, 5).map((flag) => (
-                            <li key={flag.id} className="flex items-start">
-                              <span className="text-red-500 mr-2">•</span>
-                              <div>
-                                <span className="text-sm text-red-800">{flag.message}</span>
-                                {flag.evidence && (
-                                  <p className="text-xs text-red-600 mt-1 italic">
-                                    "{flag.evidence.substring(0, 50)}..."
-                                  </p>
-                                )}
-                              </div>
-                            </li>
-                          ))}
+                        <ul className="space-y-3">
+                          {redFlags.slice(0, 5).map((flag) => (<li key={flag.id} className="text-sm text-red-800">{flag.message}</li>))}
                           {redFlags.length > 5 && (
-                            <li className="text-sm text-red-600 italic">
-                              + {redFlags.length - 5} more...
+                            <li>
+                              <button onClick={() => setActiveTab('details')} className="text-sm text-red-600 hover:text-red-800 font-medium underline">
+                                + {redFlags.length - 5} more...
+                              </button>
                             </li>
                           )}
                         </ul>
-                      ) : (
-                        <p className="text-sm text-red-700">No red flags detected</p>
-                      )}
+                      ) : (<p className="text-sm text-red-700">No red flags detected. This is a great sign!</p>)}
                     </div>
-
-                    {/* Green Flags */}
-                    <div className="bg-green-50 rounded-xl p-6">
-                      <h3 className="text-lg font-semibold text-green-900 mb-4 flex items-center">
-                        <CheckCircleIcon className="w-6 h-6 mr-2" />
-                        Green Flags ({greenFlags.length})
-                      </h3>
+                    <div className="bg-green-50/50 rounded-xl p-6 border border-green-100">
+                      <h3 className="text-lg font-semibold text-green-900 mb-4 flex items-center"><CheckCircleIcon className="w-6 h-6 mr-2" />Green Flags ({greenFlags.length})</h3>
                       {greenFlags.length > 0 ? (
-                        <ul className="space-y-2">
-                          {greenFlags.slice(0, 5).map((flag) => (
-                            <li key={flag.id} className="flex items-start">
-                              <span className="text-green-500 mr-2">•</span>
-                              <div>
-                                <span className="text-sm text-green-800">{flag.message}</span>
-                                {flag.evidence && (
-                                  <p className="text-xs text-green-600 mt-1 italic">
-                                    "{flag.evidence.substring(0, 50)}..."
-                                  </p>
-                                )}
-                              </div>
-                            </li>
-                          ))}
+                        <ul className="space-y-3">
+                          {greenFlags.slice(0, 5).map((flag) => (<li key={flag.id} className="text-sm text-green-800">{flag.message}</li>))}
                           {greenFlags.length > 5 && (
-                            <li className="text-sm text-green-600 italic">
-                              + {greenFlags.length - 5} more...
+                            <li>
+                              <button onClick={() => setActiveTab('details')} className="text-sm text-green-600 hover:text-green-800 font-medium underline">
+                                + {greenFlags.length - 5} more...
+                              </button>
                             </li>
                           )}
                         </ul>
-                      ) : (
-                        <p className="text-sm text-green-700">No green flags detected yet</p>
-                      )}
+                      ) : (<p className="text-sm text-green-700">No specific green flags detected yet.</p>)}
                     </div>
                   </div>
-
-                  {/* Suggested Replies */}
-                  {result.suggestedReplies && result.suggestedReplies.length > 0 && (
-                    <div className="bg-blue-50 rounded-xl p-6">
-                      <h3 className="text-lg font-semibold text-blue-900 mb-4 flex items-center">
-                        <LightBulbIcon className="w-6 h-6 mr-2" />
-                        Suggested Replies
-                      </h3>
-                      <div className="space-y-3">
-                        {result.suggestedReplies.map((reply) => (
-                          <div key={reply.id} className="bg-white rounded-lg p-4">
-                            <div className="flex items-start justify-between mb-2">
-                              <span className={`text-xs font-medium px-2 py-1 rounded ${
-                                reply.tone === 'friendly' ? 'bg-green-100 text-green-700' :
-                                reply.tone === 'neutral' ? 'bg-gray-100 text-gray-700' :
-                                'bg-red-100 text-red-700'
-                              }`}>
-                                {reply.tone}
-                              </span>
-                              <button
-                                onClick={() => copyReply(reply)}
-                                className="text-blue-600 hover:text-blue-700 text-sm"
-                              >
-                                Copy
-                              </button>
-                            </div>
-                            <p className="text-sm text-gray-700">{reply.content}</p>
-                            <p className="text-xs text-gray-500 mt-2">{reply.context}</p>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </motion.div>
-              )}
-
-              {/* Chat Analysis Tab */}
-              {activeTab === 'chat' && (
-                <motion.div
-                  key="chat"
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -20 }}
-                  role="tabpanel"
-                  id="tabpanel-chat"
-                >
-                  {result.chatContent && result.chatContent.length > 0 ? (
-                    <ChatDisplay 
-                      messages={result.chatContent}
-                      flags={result.flags}
-                      evidence={result.evidence}
-                    />
-                  ) : (
-                    <div className="text-center py-12">
-                      <ChatBubbleLeftRightIcon className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-                      <p className="text-gray-600">No chat messages to display</p>
-                    </div>
-                  )}
-                </motion.div>
-              )}
-
-              {/* Timeline Tab */}
-              {activeTab === 'timeline' && (
-                <motion.div
-                  key="timeline"
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -20 }}
-                  className="space-y-6"
-                  role="tabpanel"
-                  id="tabpanel-timeline"
-                >
-                  {result.timeline && result.timeline.length > 0 ? (
-                    <>
-                      <Timeline events={result.timeline} messages={result.chatContent} />
-                      <ReciprocityChart reciprocity={result.reciprocityScore} />
-                    </>
-                  ) : (
-                    <div className="text-center py-12">
-                      <ClockIcon className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-                      <p className="text-gray-600">No timeline events detected</p>
-                      <p className="text-sm text-gray-500 mt-2">
-                        Timeline shows emotional shifts and relationship progression
-                      </p>
-                    </div>
-                  )}
+                  {/* REMOVED: Suggested Replies section is no longer here */}
                 </motion.div>
               )}
 
               {/* Detailed Report Tab */}
               {activeTab === 'details' && (
-                <motion.div
-                  key="details"
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -20 }}
-                  className="space-y-6"
-                  role="tabpanel"
-                  id="tabpanel-details"
-                >
-                  {/* Consistency Report */}
+                <motion.div key="details" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} className="space-y-6">
                   <ConsistencyReport consistency={result.consistencyAnalysis} />
-                  
-                  {/* All Flags */}
                   <div>
-                    <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
-                      <InformationCircleIcon className="w-6 h-6 mr-2" />
-                      All Detected Patterns
-                    </h3>
+                    <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center"><InformationCircleIcon className="w-6 h-6 mr-2" />All Detected Patterns</h3>
                     {result.flags.length > 0 ? (
-                      <div className="space-y-3">
-                        {result.flags.map((flag) => (
-                          <div
-                            key={flag.id}
-                            className={`rounded-lg p-4 ${
-                              flag.type === 'red' ? 'bg-red-50' : 'bg-green-50'
-                            }`}
-                          >
-                            <div className="flex items-start space-x-3">
-                              {flag.type === 'red' ? (
-                                <ExclamationTriangleIcon className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
-                              ) : (
-                                <CheckCircleIcon className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
-                              )}
-                              <div className="flex-1">
-                                <p className={`font-medium ${
-                                  flag.type === 'red' ? 'text-red-900' : 'text-green-900'
-                                }`}>
-                                  {flag.message}
-                                </p>
-                                <p className={`text-sm mt-1 ${
-                                  flag.type === 'red' ? 'text-red-700' : 'text-green-700'
-                                }`}>
-                                  Category: {flag.category.replace(/_/g, ' ')}
-                                </p>
-                                {flag.evidence && (
-                                  <p className={`text-sm mt-2 italic ${
-                                    flag.type === 'red' ? 'text-red-600' : 'text-green-600'
-                                  }`}>
-                                    "{flag.evidence}"
-                                  </p>
-                                )}
+                      <div className="space-y-4">
+                        {result.flags.map((flag) => {
+                          const details = FLAG_DETAILS_KNOWLEDGE[flag.category as keyof typeof FLAG_DETAILS_KNOWLEDGE];
+                          const associatedMessage = result.chatContent.find(msg => msg.id === flag.messageId);
+                          return (
+                            <div key={flag.id} className={`rounded-lg p-4 border ${flag.type === 'red' ? 'bg-red-50/50 border-red-100' : 'bg-green-50/50 border-green-100'}`}>
+                              <div className="flex items-start justify-between">
+                                <div className="flex items-start space-x-3">{flag.type === 'red' ? <ExclamationTriangleIcon className="w-6 h-6 text-red-600 flex-shrink-0 mt-0.5" /> : <CheckCircleIcon className="w-6 h-6 text-green-600 flex-shrink-0 mt-0.5" />}<div className="flex-1"><p className={`font-semibold ${flag.type === 'red' ? 'text-red-900' : 'text-green-900'}`}>{flag.message}</p><p className={`text-sm mt-1 capitalize ${flag.type === 'red' ? 'text-red-700' : 'text-green-700'}`}>Category: {flag.category.replace(/_/g, ' ')}</p></div></div>
+                                <span className={`text-xs font-medium px-2 py-1 rounded-full capitalize ${flag.severity === 'high' ? 'bg-red-200 text-red-800' : flag.severity === 'medium' ? 'bg-orange-100 text-orange-800' : 'bg-yellow-100 text-yellow-800'}`}>{flag.severity}</span>
                               </div>
-                              <span className={`text-xs font-medium px-2 py-1 rounded ${
-                                flag.severity === 'high' 
-                                  ? flag.type === 'red' ? 'bg-red-200 text-red-800' : 'bg-green-200 text-green-800'
-                                  : flag.severity === 'medium'
-                                  ? flag.type === 'red' ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'
-                                  : flag.type === 'red' ? 'bg-red-50 text-red-600' : 'bg-green-50 text-green-600'
-                              }`}>
-                                {flag.severity}
-                              </span>
+                              {associatedMessage && (
+                                <div className="mt-4 pt-4 border-t border-dashed"><h4 className="text-sm font-semibold text-gray-800 flex items-center mb-2"><ChatBubbleBottomCenterTextIcon className="w-5 h-5 mr-2 text-gray-500"/>Triggering Message</h4><div className="bg-white border rounded-lg p-3"><p className="text-xs font-medium text-gray-500 mb-1">From: Match</p><p className="text-sm text-gray-800 italic">"{associatedMessage.content}"</p></div></div>
+                              )}
+                              {(flag.meaning || flag.whatToDo || flag.aiSuggestedReply) && (
+                                <div className="mt-4 pt-4 border-t border-dashed space-y-4">
+                                  {flag.meaning && (<div><h4 className="text-sm font-semibold text-gray-800 flex items-center mb-1"><InformationCircleIcon className="w-5 h-5 mr-2 text-gray-500"/>What it Means</h4><p className="text-sm text-gray-600">{flag.meaning}</p></div>)}
+                                  {flag.whatToDo && (<div><h4 className="text-sm font-semibold text-gray-800 flex items-center mb-1"><ShieldCheckIcon className="w-5 h-5 mr-2 text-gray-500"/>What You Should Do</h4><p className="text-sm text-gray-600">{flag.whatToDo}</p></div>)}
+                                  {flag.aiSuggestedReply && (<div><h4 className="text-sm font-semibold text-gray-800 flex items-center mb-1"><ChatBubbleLeftEllipsisIcon className="w-5 h-5 mr-2 text-gray-500"/>Suggested Reply</h4><div className="bg-white rounded-md p-3 border"><p className="text-sm italic text-gray-700 mb-2">"{flag.aiSuggestedReply.content}"</p><div className="flex items-center justify-between"><span className="text-xs font-medium text-gray-500">Tone: {flag.aiSuggestedReply.tone}</span><button onClick={() => copyToClipboard(flag.aiSuggestedReply!.content)} className="text-xs font-semibold text-primary-600 hover:text-primary-700">COPY</button></div></div></div>)}
+                                </div>
+                              )}
                             </div>
-                          </div>
-                        ))}
+                          );
+                        })}
                       </div>
-                    ) : (
-                      <div className="text-center py-8 text-gray-600">
-                        <p>No patterns detected in this conversation</p>
-                      </div>
-                    )}
+                    ) : (<div className="text-center py-8 text-gray-600"><p>No specific patterns were detected in this conversation.</p></div>)}
                   </div>
-
-                  {/* Analysis Metadata */}
-                  {result.evidence && (
-                    <div className="bg-gray-50 rounded-xl p-6">
-                      <h3 className="text-lg font-semibold text-gray-900 mb-4">Analysis Details</h3>
-                      <div className="space-y-2 text-sm">
-                        {result.evidence
-                          .filter(e => e.id === 'analysis-metadata' || e.id === 'platform-insights')
-                          .map(e => (
-                            <div key={e.id} className="text-gray-700">
-                              <span className="font-medium">{e.text}:</span> {e.explanation}
-                            </div>
-                          ))}
-                      </div>
-                    </div>
-                  )}
                 </motion.div>
               )}
             </AnimatePresence>

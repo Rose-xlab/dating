@@ -7,7 +7,7 @@ interface ConsistencyReportProps {
 }
 
 export default function ConsistencyReport({ consistency }: ConsistencyReportProps) {
-  const getCategoryIcon = (category: string) => {
+  const getCategoryIcon = (category?: string) => {
     const icons: Record<string, string> = {
       location: '📍',
       job: '💼',
@@ -15,7 +15,7 @@ export default function ConsistencyReport({ consistency }: ConsistencyReportProp
       timeline: '⏰',
       other: '📝',
     };
-    return icons[category] || '📝';
+    return icons[category || 'other'] || '📝';
   };
 
   const getStabilityColor = (score: number) => {
@@ -39,33 +39,35 @@ export default function ConsistencyReport({ consistency }: ConsistencyReportProp
         </div>
       </div>
 
-      {/* Factual Claims */}
       <div className="mb-8">
         <h4 className="font-medium text-gray-700 mb-4">Factual Claims Detected</h4>
         <div className="space-y-3">
-          {consistency.claims.map((claim) => (
-            <div key={claim.id} className="flex items-start space-x-3 p-3 bg-gray-50 rounded-lg">
-              <span className="text-xl">{getCategoryIcon(claim.category)}</span>
-              <div className="flex-1">
-                <p className="text-sm text-gray-900">{claim.claim}</p>
-                <p className="text-xs text-gray-500 mt-1">
-                  {claim.category.charAt(0).toUpperCase() + claim.category.slice(1)}
-                </p>
+          {consistency.claims && consistency.claims.length > 0 ? (
+            consistency.claims.map((claim) => (
+              <div key={claim.id} className="flex items-start space-x-3 p-3 bg-gray-50 rounded-lg">
+                <span className="text-xl">{getCategoryIcon(claim.category)}</span>
+                <div className="flex-1">
+                  <p className="text-sm text-gray-900">{claim.claim}</p>
+                  {/* FIXED: Added a check to ensure claim.category exists */}
+                  {claim.category && (
+                    <p className="text-xs text-gray-500 mt-1">
+                      {claim.category.charAt(0).toUpperCase() + claim.category.slice(1)}
+                    </p>
+                  )}
+                </div>
               </div>
-            </div>
-          ))}
-          {consistency.claims.length === 0 && (
-            <p className="text-sm text-gray-500 italic">No factual claims detected</p>
+            ))
+          ) : (
+            <p className="text-sm text-gray-500 italic">No specific factual claims were detected by the AI.</p>
           )}
         </div>
       </div>
 
-      {/* Inconsistencies */}
       <div>
         <h4 className="font-medium text-gray-700 mb-4">
-          {consistency.inconsistencies.length > 0 ? '⚠️ Inconsistencies Found' : '✅ No Inconsistencies Detected'}
+          {consistency.inconsistencies && consistency.inconsistencies.length > 0 ? '⚠️ Inconsistencies Found' : '✅ No Inconsistencies Detected'}
         </h4>
-        {consistency.inconsistencies.length > 0 ? (
+        {consistency.inconsistencies && consistency.inconsistencies.length > 0 ? (
           <div className="space-y-4">
             {consistency.inconsistencies.map((inconsistency) => (
               <div key={inconsistency.id} className="border border-red-200 rounded-lg p-4 bg-red-50">
@@ -92,35 +94,17 @@ export default function ConsistencyReport({ consistency }: ConsistencyReportProp
           <div className="flex items-center space-x-3 p-4 bg-green-50 rounded-lg">
             <CheckCircleIcon className="w-5 h-5 text-green-600" />
             <p className="text-sm text-green-800">
-              All factual claims are consistent throughout the conversation. This is a positive sign!
+              The AI found no contradictions in the factual claims made.
             </p>
           </div>
         )}
       </div>
 
-      {/* Summary */}
       <div className="mt-6 p-4 bg-blue-50 rounded-lg">
         <h4 className="font-medium text-blue-900 mb-2">What This Means</h4>
-        <div className="text-sm text-blue-800 space-y-2">
-          {consistency.stabilityIndex >= 90 && (
-            <p>
-              The person's story remains consistent throughout the conversation. Their facts align and there are no
-              contradictions in what they've shared about themselves.
-            </p>
-          )}
-          {consistency.stabilityIndex >= 70 && consistency.stabilityIndex < 90 && (
-            <p>
-              There are minor inconsistencies in the conversation. These could be innocent mistakes or memory lapses,
-              but it's worth paying attention to patterns.
-            </p>
-          )}
-          {consistency.stabilityIndex < 70 && (
-            <p>
-              Multiple inconsistencies detected. This could indicate deception or a lack of truthfulness. 
-              Be very cautious and consider asking clarifying questions about the contradictions.
-            </p>
-          )}
-        </div>
+        <p className="text-sm text-blue-800">
+          {consistency.summary || "The AI could not generate a summary for this section."}
+        </p>
       </div>
     </div>
   );

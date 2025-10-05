@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { analyzeConversation } from '@/lib/ai-analysis';
+// CHANGED: We now import the powerful, AI-driven function from your problematic file.
+import { analyzeConversationWithContext } from '@/lib/analyze-enhanced'; 
 import { redactPersonalInfo } from '@/lib/ocr';
 import { createServerSupabaseClient } from '@/lib/supabase';
 import { ChatMessage } from '@/types';
@@ -21,10 +22,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Redact personal information
     const redactedText = redactPersonalInfo(text);
-
-    // Parse text into messages
     const messages = parseTextToMessages(redactedText);
 
     if (messages.length === 0) {
@@ -34,14 +32,13 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Analyze the conversation
-    const analysisResult = await analyzeConversation(messages);
+    // CHANGED: We are now calling your detailed, AI-enhanced analysis function.
+    const analysisResult = await analyzeConversationWithContext(messages);
 
     // Save to database if user is logged in
     if (userId) {
       const supabase = createServerSupabaseClient();
       
-      // Save analysis result - Using helper function for cleaner code
       const { data: savedAnalysis, error: saveError } = await supabase
         .from('analysis_results')
         .insert({
@@ -66,10 +63,7 @@ export async function POST(request: NextRequest) {
         analysisResult.id = savedAnalysis.id;
       }
 
-      // Update user's analysis count
       await supabase.rpc('increment_analysis_count', { user_uuid: userId });
-
-      // Track usage
       await supabase.from('usage_tracking').insert({
         user_id: userId,
         action_type: 'text_analysis' as const,

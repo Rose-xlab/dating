@@ -1,5 +1,3 @@
-// Core Types for Dating Safety AI
-
 export interface AnalysisResult {
   id: string;
   userId?: string;
@@ -33,6 +31,16 @@ export interface Flag {
   evidence: string;
   messageId: string;
   confidence: number;
+
+  // --- NEW FIELDS ADDED HERE ---
+  // These will hold the dynamically generated AI insights.
+  meaning?: string;
+  whatToDo?: string;
+  aiSuggestedReply?: {
+    content: string;
+    tone: string;
+  };
+  // -----------------------------
 }
 
 export type FlagCategory = 
@@ -79,7 +87,8 @@ export interface ReciprocityAnalysis {
 export interface ConsistencyAnalysis {
   claims: FactualClaim[];
   inconsistencies: Inconsistency[];
-  stabilityIndex: number; // 0-100, higher = more consistent
+  stabilityIndex: number; 
+  summary?: string;
 }
 
 export interface FactualClaim {

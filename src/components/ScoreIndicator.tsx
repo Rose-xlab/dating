@@ -1,3 +1,5 @@
+//C:\Users\mukas\OneDrive\Desktop\date\dating\src\components\ScoreIndicator.tsx
+
 import React from 'react';
 import { motion } from 'framer-motion';
 

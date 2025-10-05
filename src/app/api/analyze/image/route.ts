@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { analyzeConversation } from '@/lib/ai-analysis';
+// CHANGED: We now import the powerful, AI-driven function.
+import { analyzeConversationWithContext } from '@/lib/analyze-enhanced';
 import { createServerSupabaseClient } from '@/lib/supabase';
 import { Json } from '@/types/supabase';
 import { ChatMessage } from '@/types';
@@ -16,7 +17,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Validate message structure
     const validMessages = messages.every(msg => 
       msg.content && 
       msg.sender && 
@@ -30,7 +30,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Add required fields to messages
     const formattedMessages: ChatMessage[] = messages.map((msg, index) => ({
       id: msg.id || `msg-${Date.now()}-${index}`,
       content: msg.content,
@@ -38,14 +37,13 @@ export async function POST(request: NextRequest) {
       timestamp: msg.timestamp ? new Date(msg.timestamp) : new Date(),
     }));
 
-    // Analyze the conversation
-    const analysisResult = await analyzeConversation(formattedMessages);
+    // CHANGED: We are now calling your detailed, AI-enhanced analysis function.
+    const analysisResult = await analyzeConversationWithContext(formattedMessages);
 
     // Save to database if user is logged in
     if (userId) {
       const supabase = createServerSupabaseClient();
       
-      // Convert complex objects to plain JSON objects to satisfy Supabase's Json type
       const { data: savedAnalysis, error: saveError } = await supabase
         .from('analysis_results')
         .insert({
@@ -53,7 +51,6 @@ export async function POST(request: NextRequest) {
           risk_score: analysisResult.riskScore,
           trust_score: analysisResult.trustScore,
           escalation_index: analysisResult.escalationIndex,
-          // Use the utility function for cleaner conversions
           chat_content: toSupabaseJson(analysisResult.chatContent),
           flags: toSupabaseJson(analysisResult.flags),
           timeline: toSupabaseJson(analysisResult.timeline),
@@ -63,7 +60,7 @@ export async function POST(request: NextRequest) {
           evidence: toSupabaseJson(analysisResult.evidence),
           metadata: toSupabaseJson({
             message_count: formattedMessages.length,
-            analysis_type: 'text',
+            analysis_type: 'image_ocr', // Changed to reflect image analysis
           }),
         })
         .select()
@@ -75,13 +72,10 @@ export async function POST(request: NextRequest) {
         analysisResult.id = savedAnalysis.id;
       }
 
-      // Update user's analysis count
       await supabase.rpc('increment_analysis_count', { user_uuid: userId });
-
-      // Track usage
       await supabase.from('usage_tracking').insert({
         user_id: userId,
-        action_type: 'text_analysis',
+        action_type: 'image_analysis', // Changed to reflect image analysis
         metadata: {
           message_count: formattedMessages.length,
         } as Json,
@@ -90,7 +84,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ result: analysisResult });
   } catch (error) {
-    console.error('Text analysis error:', error);
+    console.error('Image analysis error:', error);
     return NextResponse.json(
       { error: 'Failed to analyze conversation' },
       { status: 500 }
