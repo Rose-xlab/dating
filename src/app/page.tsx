@@ -2,18 +2,20 @@
 
 import React, { useState } from 'react';
 import Image from 'next/image';
-import { HeartIcon, ShieldCheckIcon, SparklesIcon } from '@heroicons/react/24/outline';
+import { HeartIcon, ShieldCheckIcon, SparklesIcon, ChatBubbleLeftRightIcon } from '@heroicons/react/24/outline';
 import UploadComponent from '@/components/UploadComponent';
+import ChatInterface from '@/components/ChatInterface';
 import AnalysisDashboard from '@/components/AnalysisDashboard';
 import { AnalysisResult, ChatMessage } from '@/types';
 import { processImage, redactPersonalInfo } from '@/lib/ocr';
-import { analyzeConversation } from '@/lib/ai-analysis';
+import { analyzeConversationEnhanced } from '@/lib/analyze-enhanced';
 import toast from 'react-hot-toast';
 import { motion } from 'framer-motion';
 
 export default function HomePage() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(null);
+  const [activeView, setActiveView] = useState<'upload' | 'chat'>('chat');
 
   const handleTextSubmit = async (text: string) => {
     setIsProcessing(true);
@@ -30,8 +32,11 @@ export default function HomePage() {
         throw new Error('No valid messages found in the text');
       }
 
-      // Analyze the conversation
-      const result = await analyzeConversation(messages);
+      // Analyze the conversation with enhanced analysis
+      const result = await analyzeConversationEnhanced(messages, {
+        platform: 'text_input',
+        extractionQuality: 'high'
+      });
       
       setAnalysisResult(result);
       toast.success('Analysis complete!', { id: loadingToast });
@@ -51,11 +56,14 @@ export default function HomePage() {
       // Convert file to data URL for OCR
       const dataUrl = await fileToDataUrl(file);
       
-      // Process image with OCR
+      // Process image with enhanced OCR
       const ocrResult = await processImage(dataUrl);
       
+      console.log(`OCR completed: ${ocrResult.messages.length} messages extracted`);
+      
       if (ocrResult.messages.length === 0) {
-        throw new Error('No text found in the image');
+        toast.error('No text found in the image. Please ensure the screenshot is clear and contains chat messages.', { id: loadingToast });
+        return;
       }
 
       // Redact personal information from messages
@@ -64,14 +72,23 @@ export default function HomePage() {
         content: redactPersonalInfo(msg.content),
       }));
 
-      // Analyze the conversation
-      const result = await analyzeConversation(redactedMessages);
+      // Analyze with enhanced analyzer including metadata
+      const result = await analyzeConversationEnhanced(redactedMessages, {
+        platform: ocrResult.metadata?.platform,
+        extractionQuality: ocrResult.metadata?.extractionQuality,
+      });
       
       setAnalysisResult(result);
-      toast.success('Analysis complete!', { id: loadingToast });
+      
+      // Provide feedback based on extraction quality
+      if (ocrResult.confidence < 60) {
+        toast.success('Analysis complete! Note: Image quality was low, some messages may be missed.', { id: loadingToast });
+      } else {
+        toast.success('Analysis complete!', { id: loadingToast });
+      }
     } catch (error) {
       console.error('Image processing error:', error);
-      toast.error('Failed to process image. Please try again.', { id: loadingToast });
+      toast.error('Failed to process image. Please try again with a clearer screenshot.', { id: loadingToast });
     } finally {
       setIsProcessing(false);
     }
@@ -159,22 +176,66 @@ export default function HomePage() {
               Date Safer, Love Smarter
             </h2>
             <p className="text-xl text-gray-600 max-w-3xl mx-auto">
-              AI-powered analysis that detects red flags, celebrates green flags, and helps you navigate online dating with confidence.
+              Chat with our AI for dating advice or analyze conversations to detect red flags and celebrate green flags.
             </p>
           </motion.div>
 
-          {/* Upload Section */}
+          {/* Toggle between Chat and Upload */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6, delay: 0.1 }}
+            className="flex justify-center mb-8"
+          >
+            <div className="bg-white rounded-full shadow-md p-1 flex">
+              <button
+                onClick={() => setActiveView('chat')}
+                className={`px-6 py-2 rounded-full flex items-center space-x-2 transition-all ${
+                  activeView === 'chat' 
+                    ? 'bg-purple-600 text-white' 
+                    : 'text-gray-600 hover:text-gray-900'
+                }`}
+              >
+                <ChatBubbleLeftRightIcon className="w-5 h-5" />
+                <span>Chat with AI</span>
+              </button>
+              <button
+                onClick={() => setActiveView('upload')}
+                className={`px-6 py-2 rounded-full flex items-center space-x-2 transition-all ${
+                  activeView === 'upload' 
+                    ? 'bg-purple-600 text-white' 
+                    : 'text-gray-600 hover:text-gray-900'
+                }`}
+              >
+                <ShieldCheckIcon className="w-5 h-5" />
+                <span>Analyze Text</span>
+              </button>
+            </div>
+          </motion.div>
+
+          {/* Main Content Area */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6, delay: 0.2 }}
-            className="bg-white rounded-2xl shadow-xl p-8 mb-16"
+            className="mb-16"
           >
-            <UploadComponent
-              onTextSubmit={handleTextSubmit}
-              onImageSubmit={handleImageSubmit}
-              isProcessing={isProcessing}
-            />
+            {activeView === 'chat' ? (
+              <div className="max-w-4xl mx-auto">
+                <ChatInterface
+                  onAnalyzeScreenshot={handleImageSubmit}
+                  isProcessing={isProcessing}
+                />
+              </div>
+            ) : (
+              <div className="bg-white rounded-2xl shadow-xl p-8">
+                <UploadComponent
+                  onTextSubmit={handleTextSubmit}
+                  onImageSubmit={handleImageSubmit}
+                  isProcessing={isProcessing}
+                />
+              </div>
+            )}
           </motion.div>
 
           {/* Features Grid */}
@@ -216,11 +277,11 @@ export default function HomePage() {
               className="bg-white rounded-lg shadow-md p-6"
             >
               <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center mb-4">
-                <HeartIcon className="w-6 h-6 text-purple-600" />
+                <ChatBubbleLeftRightIcon className="w-6 h-6 text-purple-600" />
               </div>
-              <h3 className="text-lg font-semibold mb-2">Relationship Health</h3>
+              <h3 className="text-lg font-semibold mb-2">AI Dating Coach</h3>
               <p className="text-gray-600">
-                Analyzes conversation balance, escalation speed, and consistency to help you build healthy connections.
+                Chat with our AI for personalized dating advice, safety tips, and help understanding relationship dynamics.
               </p>
             </motion.div>
           </div>

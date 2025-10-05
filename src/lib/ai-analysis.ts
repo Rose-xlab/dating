@@ -13,6 +13,7 @@ import {
   FactualClaim,
   Inconsistency
 } from '@/types';
+import { DatingSafetyPromptBuilder, DATING_SAFETY_KNOWLEDGE } from '@/lib/prompt-builder';
 
 // Check if API key is available
 const apiKey = process.env.OPENAI_API_KEY || process.env.NEXT_PUBLIC_OPENAI_API_KEY;
@@ -32,7 +33,7 @@ export async function analyzeConversation(messages: ChatMessage[]): Promise<Anal
     // If no OpenAI client, use mock analysis
     if (!openai) {
       console.log('Using mock analysis (no API key configured)');
-      return generateMockAnalysis(messages);
+      return await generateMockAnalysis(messages);
     }
 
     // Prepare conversation for analysis
@@ -85,7 +86,7 @@ export async function analyzeConversation(messages: ChatMessage[]): Promise<Anal
   } catch (error) {
     console.error('Analysis error:', error);
     // Fallback to mock analysis on error
-    return generateMockAnalysis(messages);
+    return await generateMockAnalysis(messages);
   }
 }
 
@@ -94,52 +95,21 @@ async function analyzeRisks(text: string, messages: ChatMessage[]) {
     return generateMockRiskAnalysis(messages);
   }
 
-  const prompt = `Analyze this dating conversation for red flags and green flags. 
-  
-Red flags to look for:
-- Financial asks (money, crypto, gift cards)
-- Pushing to move off-platform too quickly
-- Love bombing (excessive affection too fast)
-- Creating urgency or pressure
-- Boundary violations
-- Identity inconsistencies
-- Timezone mismatches with claimed location
-
-Green flags to look for:
-- Remembering details from previous conversations
-- Asking reciprocal questions
-- Offering video calls
-- Respecting the other person's pace
-- Showing patience
-
-Conversation:
-${text}
-
-Return a JSON object with this structure:
-{
-  "redFlags": [
-    {
-      "category": "financial_ask|off_platform_push|love_bombing|urgency_pressure|boundary_violation|identity_inconsistency|timezone_mismatch",
-      "severity": "low|medium|high",
-      "message": "Description of the flag",
-      "evidence": "Exact quote from conversation",
-      "messageIndex": 0
-    }
-  ],
-  "greenFlags": [
-    {
-      "category": "remembers_details|asks_reciprocal_questions|video_call_offer|respects_pace|patient_response",
-      "severity": "low|medium|high",
-      "message": "Description of the flag",
-      "evidence": "Exact quote from conversation",
-      "messageIndex": 0
-    }
-  ]
-}`;
+  // Use the comprehensive prompt builder
+  const prompt = DatingSafetyPromptBuilder.getAnalysisPrompt(messages);
 
   const response = await openai.chat.completions.create({
-    model: 'gpt-4-turbo-preview',
-    messages: [{ role: 'user', content: prompt }],
+    model: process.env.OPENAI_MODEL || 'gpt-4-turbo-preview',
+    messages: [
+      { 
+        role: 'system', 
+        content: DatingSafetyPromptBuilder.getSystemPrompt() 
+      },
+      { 
+        role: 'user', 
+        content: prompt 
+      }
+    ],
     response_format: { type: 'json_object' },
     temperature: 0.3,
   });
@@ -358,10 +328,10 @@ Return JSON array:
 }
 
 // Mock functions for when OpenAI is not available
-function generateMockAnalysis(messages: ChatMessage[]): AnalysisResult {
+async function generateMockAnalysis(messages: ChatMessage[]): Promise<AnalysisResult> {
   const mockRiskAnalysis = generateMockRiskAnalysis(messages);
   const mockTimeline = generateMockTimeline(messages);
-  const mockReciprocity = analyzeReciprocity(messages);
+  const mockReciprocity = await analyzeReciprocity(messages);
   const mockConsistency = generateMockConsistency(messages);
   const mockSuggestions = generateMockSuggestedReplies(messages);
   
