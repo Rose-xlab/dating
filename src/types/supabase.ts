@@ -1,3 +1,5 @@
+﻿//src\types\supabase.ts
+
 export type Json =
   | string
   | number
@@ -6,231 +8,240 @@ export type Json =
   | { [key: string]: Json | undefined }
   | Json[]
 
-export interface Database {
+export type Database = {
+  // Allows to automatically instantiate createClient with right options
+  // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
+  __InternalSupabase: {
+    PostgrestVersion: "13.0.5"
+  }
   public: {
     Tables: {
-      users: {
-        Row: {
-          id: string
-          email: string
-          created_at: string
-          subscription: 'free' | 'premium'
-          analysis_count: number
-          updated_at: string
-        }
-        Insert: {
-          id: string
-          email: string
-          created_at?: string
-          subscription?: 'free' | 'premium'
-          analysis_count?: number
-          updated_at?: string
-        }
-        Update: {
-          id?: string
-          email?: string
-          created_at?: string
-          subscription?: 'free' | 'premium'
-          analysis_count?: number
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "users_id_fkey"
-            columns: ["id"]
-            referencedRelation: "users"
-            referencedColumns: ["id"]
-          }
-        ]
-      }
       analysis_results: {
         Row: {
-          id: string
-          user_id: string | null
-          created_at: string
-          risk_score: number
-          trust_score: number
-          escalation_index: number
           chat_content: Json
-          flags: Json
-          timeline: Json
-          reciprocity_score: Json
-          consistency_analysis: Json
-          suggested_replies: Json
-          evidence: Json
-          metadata: Json
+          consistency_analysis: Json | null
+          created_at: string | null
+          escalation_index: number
+          evidence: Json | null
+          flags: Json | null
+          id: string
+          metadata: Json | null
+          reciprocity_score: Json | null
+          risk_score: number
+          suggested_replies: Json | null
+          timeline: Json | null
+          trust_score: number
+          user_id: string | null
         }
         Insert: {
-          id?: string
-          user_id?: string | null
-          created_at?: string
-          risk_score: number
-          trust_score: number
-          escalation_index: number
           chat_content: Json
-          flags?: Json
-          timeline?: Json
-          reciprocity_score: Json
-          consistency_analysis: Json
-          suggested_replies?: Json
-          evidence?: Json
-          metadata?: Json
+          consistency_analysis?: Json | null
+          created_at?: string | null
+          escalation_index: number
+          evidence?: Json | null
+          flags?: Json | null
+          id?: string
+          metadata?: Json | null
+          reciprocity_score?: Json | null
+          risk_score: number
+          suggested_replies?: Json | null
+          timeline?: Json | null
+          trust_score: number
+          user_id?: string | null
         }
         Update: {
-          id?: string
-          user_id?: string | null
-          created_at?: string
-          risk_score?: number
-          trust_score?: number
-          escalation_index?: number
           chat_content?: Json
-          flags?: Json
-          timeline?: Json
-          reciprocity_score?: Json
-          consistency_analysis?: Json
-          suggested_replies?: Json
-          evidence?: Json
-          metadata?: Json
+          consistency_analysis?: Json | null
+          created_at?: string | null
+          escalation_index?: number
+          evidence?: Json | null
+          flags?: Json | null
+          id?: string
+          metadata?: Json | null
+          reciprocity_score?: Json | null
+          risk_score?: number
+          suggested_replies?: Json | null
+          timeline?: Json | null
+          trust_score?: number
+          user_id?: string | null
         }
         Relationships: [
           {
             foreignKeyName: "analysis_results_user_id_fkey"
             columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      feedback: {
+        Row: {
+          analysis_id: string | null
+          comment: string | null
+          created_at: string | null
+          feedback_type: string
+          flag_id: string
+          id: string
+          user_id: string | null
+        }
+        Insert: {
+          analysis_id?: string | null
+          comment?: string | null
+          created_at?: string | null
+          feedback_type: string
+          flag_id: string
+          id?: string
+          user_id?: string | null
+        }
+        Update: {
+          analysis_id?: string | null
+          comment?: string | null
+          created_at?: string | null
+          feedback_type?: string
+          flag_id?: string
+          id?: string
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "feedback_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
             referencedRelation: "users"
             referencedColumns: ["id"]
-          }
+          },
         ]
+      }
+      profiles: {
+        Row: {
+          analysis_count: number
+          id: string
+          subscription: string
+          updated_at: string | null
+        }
+        Insert: {
+          analysis_count?: number
+          id: string
+          subscription?: string
+          updated_at?: string | null
+        }
+        Update: {
+          analysis_count?: number
+          id?: string
+          subscription?: string
+          updated_at?: string | null
+        }
+        Relationships: []
       }
       saved_analyses: {
         Row: {
-          id: string
-          user_id: string
           analysis_id: string
-          title: string
+          created_at: string | null
+          id: string
           notes: string | null
-          created_at: string
-          updated_at: string
+          title: string
+          updated_at: string | null
+          user_id: string
         }
         Insert: {
-          id?: string
-          user_id: string
           analysis_id: string
-          title: string
+          created_at?: string | null
+          id?: string
           notes?: string | null
-          created_at?: string
-          updated_at?: string
+          title: string
+          updated_at?: string | null
+          user_id: string
         }
         Update: {
-          id?: string
-          user_id?: string
           analysis_id?: string
-          title?: string
+          created_at?: string | null
+          id?: string
           notes?: string | null
-          created_at?: string
-          updated_at?: string
+          title?: string
+          updated_at?: string | null
+          user_id?: string
         }
         Relationships: [
           {
             foreignKeyName: "saved_analyses_user_id_fkey"
             columns: ["user_id"]
+            isOneToOne: false
             referencedRelation: "users"
             referencedColumns: ["id"]
           },
-          {
-            foreignKeyName: "saved_analyses_analysis_id_fkey"
-            columns: ["analysis_id"]
-            referencedRelation: "analysis_results"
-            referencedColumns: ["id"]
-          }
-        ]
-      }
-      feedback: {
-        Row: {
-          id: string
-          analysis_id: string | null
-          user_id: string | null
-          flag_id: string
-          feedback_type: 'false_positive' | 'false_negative' | 'helpful' | 'not_helpful'
-          comment: string | null
-          created_at: string
-        }
-        Insert: {
-          id?: string
-          analysis_id?: string | null
-          user_id?: string | null
-          flag_id: string
-          feedback_type: 'false_positive' | 'false_negative' | 'helpful' | 'not_helpful'
-          comment?: string | null
-          created_at?: string
-        }
-        Update: {
-          id?: string
-          analysis_id?: string | null
-          user_id?: string | null
-          flag_id?: string
-          feedback_type?: 'false_positive' | 'false_negative' | 'helpful' | 'not_helpful'
-          comment?: string | null
-          created_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "feedback_analysis_id_fkey"
-            columns: ["analysis_id"]
-            referencedRelation: "analysis_results"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "feedback_user_id_fkey"
-            columns: ["user_id"]
-            referencedRelation: "users"
-            referencedColumns: ["id"]
-          }
         ]
       }
       usage_tracking: {
         Row: {
+          action_type: string
+          created_at: string | null
           id: string
+          metadata: Json | null
           user_id: string | null
-          action_type: 'text_analysis' | 'image_analysis' | 'export_report'
-          created_at: string
-          metadata: Json
         }
         Insert: {
+          action_type: string
+          created_at?: string | null
           id?: string
+          metadata?: Json | null
           user_id?: string | null
-          action_type: 'text_analysis' | 'image_analysis' | 'export_report'
-          created_at?: string
-          metadata?: Json
         }
         Update: {
+          action_type?: string
+          created_at?: string | null
           id?: string
+          metadata?: Json | null
           user_id?: string | null
-          action_type?: 'text_analysis' | 'image_analysis' | 'export_report'
-          created_at?: string
-          metadata?: Json
         }
         Relationships: [
           {
             foreignKeyName: "usage_tracking_user_id_fkey"
             columns: ["user_id"]
+            isOneToOne: false
             referencedRelation: "users"
             referencedColumns: ["id"]
-          }
+          },
         ]
+      }
+      users: {
+        Row: {
+          analysis_count: number | null
+          created_at: string | null
+          email: string
+          id: string
+          subscription: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          analysis_count?: number | null
+          created_at?: string | null
+          email: string
+          id: string
+          subscription?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          analysis_count?: number | null
+          created_at?: string | null
+          email?: string
+          id?: string
+          subscription?: string | null
+          updated_at?: string | null
+        }
+        Relationships: []
       }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      increment_analysis_count: {
-        Args: {
-          user_uuid: string
-        }
-        Returns: undefined
-      }
       cleanup_old_analyses: {
         Args: Record<PropertyKey, never>
+        Returns: undefined
+      }
+      increment_analysis_count: {
+        Args: { user_uuid: string }
         Returns: undefined
       }
     }
@@ -242,3 +253,126 @@ export interface Database {
     }
   }
 }
+
+type DatabaseWithoutInternals = Omit<Database, "__InternalSupabase">
+
+type DefaultSchema = DatabaseWithoutInternals[Extract<keyof Database, "public">]
+
+export type Tables<
+  DefaultSchemaTableNameOrOptions extends
+    | keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
+    | { schema: keyof DatabaseWithoutInternals },
+  TableName extends DefaultSchemaTableNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
+        DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
+    : never = never,
+> = DefaultSchemaTableNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
+      DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])[TableName] extends {
+      Row: infer R
+    }
+    ? R
+    : never
+  : DefaultSchemaTableNameOrOptions extends keyof (DefaultSchema["Tables"] &
+        DefaultSchema["Views"])
+    ? (DefaultSchema["Tables"] &
+        DefaultSchema["Views"])[DefaultSchemaTableNameOrOptions] extends {
+        Row: infer R
+      }
+      ? R
+      : never
+    : never
+
+export type TablesInsert<
+  DefaultSchemaTableNameOrOptions extends
+    | keyof DefaultSchema["Tables"]
+    | { schema: keyof DatabaseWithoutInternals },
+  TableName extends DefaultSchemaTableNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
+    : never = never,
+> = DefaultSchemaTableNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
+      Insert: infer I
+    }
+    ? I
+    : never
+  : DefaultSchemaTableNameOrOptions extends keyof DefaultSchema["Tables"]
+    ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
+        Insert: infer I
+      }
+      ? I
+      : never
+    : never
+
+export type TablesUpdate<
+  DefaultSchemaTableNameOrOptions extends
+    | keyof DefaultSchema["Tables"]
+    | { schema: keyof DatabaseWithoutInternals },
+  TableName extends DefaultSchemaTableNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
+    : never = never,
+> = DefaultSchemaTableNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
+      Update: infer U
+    }
+    ? U
+    : never
+  : DefaultSchemaTableNameOrOptions extends keyof DefaultSchema["Tables"]
+    ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
+        Update: infer U
+      }
+      ? U
+      : never
+    : never
+
+export type Enums<
+  DefaultSchemaEnumNameOrOptions extends
+    | keyof DefaultSchema["Enums"]
+    | { schema: keyof DatabaseWithoutInternals },
+  EnumName extends DefaultSchemaEnumNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"]
+    : never = never,
+> = DefaultSchemaEnumNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"][EnumName]
+  : DefaultSchemaEnumNameOrOptions extends keyof DefaultSchema["Enums"]
+    ? DefaultSchema["Enums"][DefaultSchemaEnumNameOrOptions]
+    : never
+
+export type CompositeTypes<
+  PublicCompositeTypeNameOrOptions extends
+    | keyof DefaultSchema["CompositeTypes"]
+    | { schema: keyof DatabaseWithoutInternals },
+  CompositeTypeName extends PublicCompositeTypeNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
+    : never = never,
+> = PublicCompositeTypeNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"][CompositeTypeName]
+  : PublicCompositeTypeNameOrOptions extends keyof DefaultSchema["CompositeTypes"]
+    ? DefaultSchema["CompositeTypes"][PublicCompositeTypeNameOrOptions]
+    : never
+
+export const Constants = {
+  public: {
+    Enums: {},
+  },
+} as const

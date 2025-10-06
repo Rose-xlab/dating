@@ -1,85 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
-// CHANGED: We now import the powerful, AI-driven function from your problematic file.
 import { analyzeConversationWithContext } from '@/lib/analyze-enhanced'; 
 import { redactPersonalInfo } from '@/lib/ocr';
-import { createServerSupabaseClient } from '@/lib/supabase';
+import { createClient } from '@/lib/supabase/server';
 import { ChatMessage } from '@/types';
 import { Json } from '@/types/supabase';
-
-// Helper function to convert any value to Json type
-function toJson<T>(value: T): Json {
-  return JSON.parse(JSON.stringify(value)) as unknown as Json;
-}
-
-export async function POST(request: NextRequest) {
-  try {
-    const { text, userId } = await request.json();
-
-    if (!text || typeof text !== 'string') {
-      return NextResponse.json(
-        { error: 'Invalid text input' },
-        { status: 400 }
-      );
-    }
-
-    const redactedText = redactPersonalInfo(text);
-    const messages = parseTextToMessages(redactedText);
-
-    if (messages.length === 0) {
-      return NextResponse.json(
-        { error: 'No valid messages found in the text' },
-        { status: 400 }
-      );
-    }
-
-    // CHANGED: We are now calling your detailed, AI-enhanced analysis function.
-    const analysisResult = await analyzeConversationWithContext(messages);
-
-    // Save to database if user is logged in
-    if (userId) {
-      const supabase = createServerSupabaseClient();
-      
-      const { data: savedAnalysis, error: saveError } = await supabase
-        .from('analysis_results')
-        .insert({
-          user_id: userId,
-          risk_score: analysisResult.riskScore,
-          trust_score: analysisResult.trustScore,
-          escalation_index: analysisResult.escalationIndex,
-          chat_content: toJson(analysisResult.chatContent),
-          flags: toJson(analysisResult.flags),
-          timeline: toJson(analysisResult.timeline),
-          reciprocity_score: toJson(analysisResult.reciprocityScore),
-          consistency_analysis: toJson(analysisResult.consistencyAnalysis),
-          suggested_replies: toJson(analysisResult.suggestedReplies),
-          evidence: toJson(analysisResult.evidence),
-        })
-        .select()
-        .single();
-
-      if (saveError) {
-        console.error('Error saving analysis:', saveError);
-      } else if (savedAnalysis) {
-        analysisResult.id = savedAnalysis.id;
-      }
-
-      await supabase.rpc('increment_analysis_count', { user_uuid: userId });
-      await supabase.from('usage_tracking').insert({
-        user_id: userId,
-        action_type: 'text_analysis' as const,
-        metadata: toJson({ message_count: messages.length }),
-      });
-    }
-
-    return NextResponse.json({ result: analysisResult });
-  } catch (error) {
-    console.error('Analysis error:', error);
-    return NextResponse.json(
-      { error: 'Failed to analyze conversation' },
-      { status: 500 }
-    );
-  }
-}
 
 function parseTextToMessages(text: string): ChatMessage[] {
   const lines = text.split('\n').filter(line => line.trim());
@@ -91,13 +15,7 @@ function parseTextToMessages(text: string): ChatMessage[] {
     if (colonIndex > 0 && colonIndex < 20) {
       const sender = line.substring(0, colonIndex).trim().toLowerCase();
       const content = line.substring(colonIndex + 1).trim();
-      
-      if (sender.includes('me') || sender.includes('i') || sender === 'you') {
-        currentSender = 'user';
-      } else {
-        currentSender = 'match';
-      }
-      
+      currentSender = (sender.includes('me') || sender.includes('i') || sender === 'you') ? 'user' : 'match';
       if (content) {
         messages.push({
           id: `msg-${index}`,
@@ -115,6 +33,56 @@ function parseTextToMessages(text: string): ChatMessage[] {
       });
     }
   });
-  
   return messages;
+}
+
+export async function POST(request: NextRequest) {
+  const supabase = createClient();
+
+  try {
+    // 1. Get the authenticated user
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    // 2. Get text from the request body
+    const { text } = await request.json();
+
+    if (!text || typeof text !== 'string') {
+      return NextResponse.json({ error: 'Invalid text input' }, { status: 400 });
+    }
+
+    const redactedText = redactPersonalInfo(text);
+    const messages = parseTextToMessages(redactedText);
+
+    if (messages.length === 0) {
+      return NextResponse.json({ error: 'No valid messages found in the text' }, { status: 400 });
+    }
+
+    // 3. Call the analysis function with the correct arguments
+    const analysisResult = await analyzeConversationWithContext(messages); // <-- This is the corrected line
+
+    // 4. Save to the database using the secure user.id
+    await supabase
+      .from('analysis_results')
+      .insert({
+        user_id: user.id,
+        risk_score: analysisResult.riskScore,
+        trust_score: analysisResult.trustScore,
+        escalation_index: analysisResult.escalationIndex,
+        chat_content: JSON.parse(JSON.stringify(analysisResult.chatContent)),
+        flags: JSON.parse(JSON.stringify(analysisResult.flags)),
+        timeline: JSON.parse(JSON.stringify(analysisResult.timeline)),
+        reciprocity_score: JSON.parse(JSON.stringify(analysisResult.reciprocityScore)),
+        consistency_analysis: JSON.parse(JSON.stringify(analysisResult.consistencyAnalysis)),
+        suggested_replies: JSON.parse(JSON.stringify(analysisResult.suggestedReplies)),
+        evidence: JSON.parse(JSON.stringify(analysisResult.evidence)),
+      });
+
+    return NextResponse.json({ result: analysisResult });
+  } catch (error) {
+    console.error('Text analysis error:', error);
+    return NextResponse.json({ error: 'Failed to analyze conversation' }, { status: 500 });
+  }
 }
