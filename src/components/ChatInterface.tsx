@@ -1,14 +1,17 @@
+// src/components/ChatInterface.tsx
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { PaperAirplaneIcon, PhotoIcon, UserIcon, SparklesIcon } from '@heroicons/react/24/outline';
+import { PaperAirplaneIcon, PhotoIcon, UserIcon, SparklesIcon, ExclamationTriangleIcon } from '@heroicons/react/24/outline';
 import { motion, AnimatePresence } from 'framer-motion';
 import toast from 'react-hot-toast';
 import { createClient } from '@/lib/supabase/client';
+import SenderSelectionModal from './SenderSelectionModal';
+import { detectWhatsAppFormat, extractSenderNames } from '@/lib/parsers/whatsapp-parser';
 
 interface Message {
   id: string;
-  role: 'user' | 'assistant' | 'system'; // System role is used for context
+  role: 'user' | 'assistant' | 'system';
   content: string;
   timestamp: Date;
 }
@@ -28,12 +31,15 @@ export default function ChatInterface({ onAnalyzeScreenshot, onAnalyzeText, isPr
     {
       id: '1',
       role: 'assistant',
-      content: "Hi! I'm your Dating Safety AI. Type a question, paste a conversation, or upload a screenshot to get started.",
+      content: "Hi! I'm your Dating Safety AI. I can analyze conversations from dating apps or WhatsApp. Type a question, paste a conversation, or upload a screenshot to get started.",
       timestamp: new Date(),
     }
   ]);
   const [input, setInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
+  const [showSenderModal, setShowSenderModal] = useState(false);
+  const [detectedSenders, setDetectedSenders] = useState<string[]>([]);
+  const [pendingText, setPendingText] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const supabase = createClient();
@@ -53,7 +59,7 @@ export default function ChatInterface({ onAnalyzeScreenshot, onAnalyzeText, isPr
           const formattedHistory = history.messages.map((msg: any, index: number) => ({
             ...msg,
             id: `hist-${index}`,
-            timestamp: new Date(), // Use current time for display simplicity
+            timestamp: new Date(),
           }));
           setMessages(formattedHistory);
         }
@@ -66,25 +72,116 @@ export default function ChatInterface({ onAnalyzeScreenshot, onAnalyzeText, isPr
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
+  const handleWhatsAppAnalysis = async (text: string, userIdentifier?: string) => {
+    try {
+      const response = await fetch('/api/analyze/text', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          text, 
+          platform: 'whatsapp',
+          userIdentifier,
+          userPosition: 'right' // WhatsApp always shows user on right
+        }),
+      });
+
+      const data = await response.json();
+
+      if (response.status === 400 && data.requiresUserIdentifier) {
+        // Need user to identify themselves
+        setDetectedSenders(data.detectedSenders);
+        setPendingText(text);
+        setShowSenderModal(true);
+        return;
+      }
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to analyze conversation');
+      }
+
+      // Add warning message if high-risk behavior detected
+      if (data.result && data.result.riskScore >= 90) {
+        setMessages(prev => [...prev, {
+          id: Date.now().toString(),
+          role: 'assistant',
+          content: '⚠️ **CRITICAL SAFETY ALERT**: This conversation shows extremely concerning behavior including potential stalking and harassment. Your safety is the top priority. Please review the analysis carefully.',
+          timestamp: new Date()
+        }]);
+      }
+
+      onAnalyzeText(text);
+      toast.success('WhatsApp conversation analyzed successfully!');
+      
+    } catch (error) {
+      console.error('WhatsApp analysis error:', error);
+      toast.error((error as Error).message);
+    }
+  };
+
+  const handleTextSubmit = async (text: string) => {
+    if (!text || text.trim().length < 20) {
+      toast.error('Please provide a longer conversation for meaningful analysis.');
+      return;
+    }
+
+    // Check if this is a WhatsApp export
+    if (detectWhatsAppFormat(text)) {
+      setMessages(prev => [...prev, {
+        id: Date.now().toString(),
+        role: 'user',
+        content: '📱 Analyzing WhatsApp conversation...',
+        timestamp: new Date()
+      }]);
+      
+      await handleWhatsAppAnalysis(text);
+    } else {
+      // Regular text analysis
+      await onAnalyzeText(text);
+    }
+  };
+
+  const handleSenderSelection = async (selectedSender: string) => {
+    setShowSenderModal(false);
+    
+    setMessages(prev => [...prev, {
+      id: Date.now().toString(),
+      role: 'assistant',
+      content: `Got it! I'll analyze the conversation with you as "${selectedSender}" and examine the other person's behavior.`,
+      timestamp: new Date()
+    }]);
+    
+    await handleWhatsAppAnalysis(pendingText, selectedSender);
+  };
+
   const handleSend = async () => {
     if (!input.trim() || isProcessing || isTyping) return;
 
-    const userMessage: Message = { id: Date.now().toString(), role: 'user', content: input, timestamp: new Date() };
+    const userMessage: Message = { 
+      id: Date.now().toString(), 
+      role: 'user', 
+      content: input, 
+      timestamp: new Date() 
+    };
     setMessages(prev => [...prev, userMessage]);
     setInput('');
     setIsTyping(true);
 
     try {
-      // The API now handles history, so we only need to send the new message
       const response = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ messages: [{ role: 'user', content: userMessage.content }] }),
       });
+      
       if (!response.ok) throw new Error('Failed to get response from AI assistant.');
 
       const data = await response.json();
-      const assistantMessage: Message = { id: (Date.now() + 1).toString(), role: 'assistant', content: data.content, timestamp: new Date() };
+      const assistantMessage: Message = { 
+        id: (Date.now() + 1).toString(), 
+        role: 'assistant', 
+        content: data.content, 
+        timestamp: new Date() 
+      };
       setMessages(prev => [...prev, assistantMessage]);
     } catch (error) {
       toast.error((error as Error).message);
@@ -97,96 +194,192 @@ export default function ChatInterface({ onAnalyzeScreenshot, onAnalyzeText, isPr
     const file = e.target.files?.[0];
     if (!file) return;
     
-    setMessages(prev => [...prev, { id: Date.now().toString(), role: 'user', content: `📸 Analyzing screenshot: ${file.name}`, timestamp: new Date() }]);
+    setMessages(prev => [...prev, { 
+      id: Date.now().toString(), 
+      role: 'user', 
+      content: `📸 Analyzing screenshot: ${file.name}`, 
+      timestamp: new Date() 
+    }]);
     onAnalyzeScreenshot(file);
     e.target.value = '';
   };
 
-  const handlePaste = (e: React.ClipboardEvent<HTMLInputElement>) => {
+  const handlePaste = async (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
     const items = e.clipboardData.items;
+    
+    // Check for images first
     for (let i = 0; i < items.length; i++) {
       if (items[i].type.indexOf('image') !== -1) {
         const file = items[i].getAsFile();
         if (file) {
           e.preventDefault();
-          setMessages(prev => [...prev, { id: Date.now().toString(), role: 'user', content: `📋 Pasted a screenshot for analysis.`, timestamp: new Date() }]);
+          setMessages(prev => [...prev, { 
+            id: Date.now().toString(), 
+            role: 'user', 
+            content: `📋 Pasted a screenshot for analysis.`, 
+            timestamp: new Date() 
+          }]);
           onAnalyzeScreenshot(file);
           return;
         }
       }
     }
 
+    // Check for text that looks like a conversation
     const pastedText = e.clipboardData.getData('text');
-    if (pastedText.includes('\n') && pastedText.length > 20) {
+    if (pastedText.includes('\n') && pastedText.length > 100) {
       e.preventDefault();
-      setMessages(prev => [...prev, { id: Date.now().toString(), role: 'user', content: `📋 Pasted a conversation for analysis.`, timestamp: new Date() }]);
-      onAnalyzeText(pastedText);
+      
+      // Detect if it's WhatsApp format
+      if (detectWhatsAppFormat(pastedText)) {
+        setMessages(prev => [...prev, { 
+          id: Date.now().toString(), 
+          role: 'user', 
+          content: `📱 Pasted a WhatsApp conversation for analysis.`, 
+          timestamp: new Date() 
+        }]);
+        await handleWhatsAppAnalysis(pastedText);
+      } else {
+        setMessages(prev => [...prev, { 
+          id: Date.now().toString(), 
+          role: 'user', 
+          content: `📋 Pasted a conversation for analysis.`, 
+          timestamp: new Date() 
+        }]);
+        await handleTextSubmit(pastedText);
+      }
     }
   };
 
   return (
-    <div className="flex flex-col h-[70vh] max-h-[800px] min-h-[500px] bg-white rounded-2xl shadow-xl">
-      <div className="bg-gradient-to-r from-blue-500 to-indigo-600 text-white p-4 rounded-t-2xl">
-        <div className="flex items-center space-x-3">
-          <SparklesIcon className="w-8 h-8" />
-          <div>
-            <h3 className="text-lg font-semibold">Swipe Safe AI Assistant</h3>
-            <p className="text-sm opacity-90">Your personal guide to safer dating</p>
+    <>
+      <div className="flex flex-col h-[70vh] max-h-[800px] min-h-[500px] bg-white rounded-2xl shadow-xl">
+        <div className="bg-gradient-to-r from-blue-500 to-indigo-600 text-white p-4 rounded-t-2xl">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-3">
+              <SparklesIcon className="w-8 h-8" />
+              <div>
+                <h3 className="text-lg font-semibold">Swipe Safe AI Assistant</h3>
+                <p className="text-sm opacity-90">WhatsApp & Dating App Analysis</p>
+              </div>
+            </div>
+            {isProcessing && (
+              <div className="flex items-center space-x-2 text-sm bg-white/20 px-3 py-1 rounded-full">
+                <div className="animate-spin h-3 w-3 border-2 border-white border-t-transparent rounded-full"></div>
+                <span>Analyzing...</span>
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-4 space-y-4">
+          <AnimatePresence>
+            {messages.map((message) => (
+              <motion.div 
+                key={message.id} 
+                initial={{ opacity: 0, y: 10 }} 
+                animate={{ opacity: 1, y: 0 }} 
+                exit={{ opacity: 0 }} 
+                className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
+              >
+                <div className={`flex items-start space-x-2 max-w-[80%] ${
+                  message.role === 'user' ? 'flex-row-reverse space-x-reverse' : ''
+                }`}>
+                  <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${
+                    message.role === 'user' ? 'bg-blue-500' : 'bg-indigo-500'
+                  }`}>
+                    {message.role === 'user' ? 
+                      <UserIcon className="w-5 h-5 text-white" /> : 
+                      <SparklesIcon className="w-5 h-5 text-white" />
+                    }
+                  </div>
+                  <div className={`rounded-lg px-4 py-2 ${
+                    message.role === 'user' ? 'bg-blue-500 text-white' : 'bg-gray-100 text-gray-800'
+                  }`}>
+                    <p className="whitespace-pre-wrap">{message.content}</p>
+                    <p className={`text-xs mt-1 ${
+                      message.role === 'user' ? 'text-blue-100' : 'text-gray-500'
+                    }`}>
+                      {formatTime(message.timestamp)}
+                    </p>
+                  </div>
+                </div>
+              </motion.div>
+            ))}
+          </AnimatePresence>
+          
+          {isTyping && (
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex justify-start">
+              <div className="bg-gray-100 rounded-lg px-4 py-2">
+                <div className="flex space-x-2">
+                  <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
+                  <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
+                  <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
+                </div>
+              </div>
+            </motion.div>
+          )}
+          <div ref={messagesEndRef} />
+        </div>
+
+        <div className="border-t p-4">
+          <div className="mb-2 text-xs text-gray-500">
+            💡 Tip: Paste WhatsApp conversations directly or upload screenshots
+          </div>
+          <div className="flex items-center space-x-2">
+            <button 
+              onClick={() => fileInputRef.current?.click()} 
+              disabled={isProcessing} 
+              className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors disabled:opacity-50" 
+              title="Upload screenshot"
+            >
+              <PhotoIcon className="w-6 h-6" />
+            </button>
+            <input 
+              ref={fileInputRef} 
+              type="file" 
+              accept="image/*" 
+              onChange={handleFileSelect} 
+              className="hidden" 
+            />
+            <textarea
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyPress={(e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault();
+                  handleSend();
+                }
+              }}
+              onPaste={handlePaste}
+              placeholder="Ask a question, paste a conversation, or upload a screenshot..."
+              className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+              disabled={isTyping || isProcessing}
+              rows={1}
+            />
+            <button 
+              onClick={handleSend} 
+              disabled={!input.trim() || isTyping || isProcessing} 
+              className="p-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
+            >
+              <PaperAirplaneIcon className="w-5 h-5" />
+            </button>
           </div>
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto p-4 space-y-4">
-        <AnimatePresence>
-          {messages.map((message) => (
-            <motion.div key={message.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-              <div className={`flex items-start space-x-2 max-w-[80%] ${message.role === 'user' ? 'flex-row-reverse space-x-reverse' : ''}`}>
-                <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${message.role === 'user' ? 'bg-blue-500' : 'bg-indigo-500'}`}>
-                  {message.role === 'user' ? <UserIcon className="w-5 h-5 text-white" /> : <SparklesIcon className="w-5 h-5 text-white" />}
-                </div>
-                <div className={`rounded-lg px-4 py-2 ${message.role === 'user' ? 'bg-blue-500 text-white' : 'bg-gray-100 text-gray-800'}`}>
-                  <p className="whitespace-pre-wrap">{message.content}</p>
-                  <p className={`text-xs mt-1 ${message.role === 'user' ? 'text-blue-100' : 'text-gray-500'}`}>{formatTime(message.timestamp)}</p>
-                </div>
-              </div>
-            </motion.div>
-          ))}
-        </AnimatePresence>
-        {isTyping && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex justify-start">
-            <div className="bg-gray-100 rounded-lg px-4 py-2">
-              <div className="flex space-x-2">
-                <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
-                <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
-                <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
-              </div>
-            </div>
-          </motion.div>
-        )}
-        <div ref={messagesEndRef} />
-      </div>
-
-      <div className="border-t p-4">
-        <div className="flex items-center space-x-2">
-          <button onClick={() => fileInputRef.current?.click()} disabled={isProcessing} className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors disabled:opacity-50" title="Upload screenshot">
-            <PhotoIcon className="w-6 h-6" />
-          </button>
-          <input ref={fileInputRef} type="file" accept="image/*" onChange={handleFileSelect} className="hidden" />
-          <input
-            type="text"
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyPress={(e) => e.key === 'Enter' && handleSend()}
-            onPaste={handlePaste}
-            placeholder="Type a question, paste a conversation, or upload..."
-            className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-            disabled={isTyping || isProcessing}
+      <AnimatePresence>
+        {showSenderModal && (
+          <SenderSelectionModal
+            senders={detectedSenders}
+            onSelect={handleSenderSelection}
+            onClose={() => {
+              setShowSenderModal(false);
+              setPendingText('');
+            }}
           />
-          <button onClick={handleSend} disabled={!input.trim() || isTyping || isProcessing} className="p-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50">
-            <PaperAirplaneIcon className="w-5 h-5" />
-          </button>
-        </div>
-      </div>
-    </div>
+        )}
+      </AnimatePresence>
+    </>
   );
 }

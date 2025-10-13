@@ -1,10 +1,24 @@
+//src\lib\analyze-enhanced.ts
+
 import { ChatMessage, AnalysisResult, Flag, FlagCategory, TimelineEvent } from '@/types';
 import OpenAI from 'openai';
 
-// Initialize the OpenAI client
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+// Validate OpenAI API key
+if (!process.env.OPENAI_API_KEY) {
+  console.error('OPENAI_API_KEY environment variable is not set!');
+  throw new Error('OpenAI API key is required for analysis');
+}
+
+// Initialize the OpenAI client with error handling
+let openai: OpenAI;
+try {
+  openai = new OpenAI({
+    apiKey: process.env.OPENAI_API_KEY,
+  });
+} catch (error) {
+  console.error('Failed to initialize OpenAI client:', error);
+  throw new Error('OpenAI client initialization failed');
+}
 
 interface ConversationContext {
   userMessages: ChatMessage[];
@@ -183,16 +197,77 @@ async function detectFlagsWithContextualAI(
     Return ONLY the JSON object.
   `;
 
+  const harassmentPrompt = `
+CRITICAL HARASSMENT AND STALKING PATTERNS:
+
+1. EXCESSIVE CONTACT:
+   - Count empty messages or call indicators
+   - 10+ unanswered calls = HIGH severity harassment
+   - 50+ calls = CRITICAL severity stalking behavior
+   
+2. THIRD-PARTY CONTACT:
+   - Any mention of contacting family/friends without permission
+   - "I called your mom/friend" = CRITICAL boundary violation
+   
+3. CONTROL INDICATORS:
+   - "You don't listen to me" type statements
+   - Anger about not answering calls
+   - Demanding immediate responses
+   
+4. ESCALATION PATTERNS:
+   - Messages getting more aggressive over time
+   - Threats (even subtle ones)
+   - "I'll never give up on you" after being rejected
+
+When you see 50+ call attempts, immediately flag as:
+- category: "stalking_harassment"  
+- severity: "critical"
+- safety_level: "immediate_danger"
+- message: "Extreme stalking behavior - 50+ unwanted contact attempts"
+`;
+
   try {
+    console.log('Starting contextual AI flag detection...');
+    
     const response = await openai.chat.completions.create({
-      model: process.env.OPENAI_MODEL || 'gpt-4-turbo-preview',
+      model: process.env.OPENAI_MODEL || 'gpt-4o',
       messages: [{ role: 'user', content: prompt }],
       response_format: { type: 'json_object' },
       temperature: 0.2,
       max_tokens: 2000,
     });
     
-    const parsed = JSON.parse(response.choices[0].message.content || '{"red_flags": [], "green_flags": []}');
+    const messageContent = response.choices[0]?.message?.content;
+    
+    if (!messageContent) {
+      console.error('No content returned from OpenAI');
+      return { rawRedFlags: [], greenFlags: [] };
+    }
+    
+    console.log('Raw OpenAI response length:', messageContent.length);
+    console.log('First 200 chars:', messageContent.substring(0, 200));
+    
+    let parsed;
+    try {
+      parsed = JSON.parse(messageContent);
+    } catch (parseError) {
+      console.error('JSON parsing error:', parseError);
+      console.error('Invalid JSON content:', messageContent);
+      
+      // Try to extract JSON if it's wrapped in markdown code blocks
+      const jsonMatch = messageContent.match(/```json\s*([\s\S]*?)\s*```/);
+      if (jsonMatch) {
+        try {
+          parsed = JSON.parse(jsonMatch[1]);
+        } catch (innerError) {
+          console.error('Failed to parse extracted JSON:', innerError);
+          return { rawRedFlags: [], greenFlags: [] };
+        }
+      } else {
+        return { rawRedFlags: [], greenFlags: [] };
+      }
+    }
+    
     const rawRedFlags: Flag[] = [];
     const greenFlags: Flag[] = [];
 
@@ -200,9 +275,28 @@ async function detectFlagsWithContextualAI(
     if (parsed.red_flags && Array.isArray(parsed.red_flags)) {
       for (const flag of parsed.red_flags) {
         // Get all messages that contribute to this flag
-        const triggeringIndices = flag.triggering_messages?.map((msg: string) => 
-          parseInt(msg.replace('MSG_', ''))
-        ).filter((idx: number) => !isNaN(idx)) || [];
+        let triggeringIndices: number[] = [];
+        if (flag.triggering_messages) {
+          if (Array.isArray(flag.triggering_messages)) {
+            triggeringIndices = flag.triggering_messages
+              .map((msg: any) => {
+                // Handle different possible formats
+                if (typeof msg === 'number') {
+                  return msg;
+                } else if (typeof msg === 'string') {
+                  // Remove 'MSG_' prefix if present
+                  const cleaned = msg.replace(/MSG_/i, '');
+                  return parseInt(cleaned);
+                } else {
+                  console.warn('Unexpected triggering_message format:', msg);
+                  return NaN;
+                }
+              })
+              .filter((idx: number) => !isNaN(idx) && idx >= 0 && idx < messages.length);
+          } else {
+            console.warn('triggering_messages is not an array:', flag.triggering_messages);
+          }
+        }
         
         // Find the most representative message for this flag
         const primaryIndex = triggeringIndices[0];
@@ -238,9 +332,29 @@ async function detectFlagsWithContextualAI(
     // Process green flags with full context
     if (parsed.green_flags && Array.isArray(parsed.green_flags)) {
       for (const flag of parsed.green_flags) {
-        const triggeringIndices = flag.triggering_messages?.map((msg: string) => 
-          parseInt(msg.replace('MSG_', ''))
-        ).filter((idx: number) => !isNaN(idx)) || [];
+        // Get all messages that contribute to this flag
+        let triggeringIndices: number[] = [];
+        if (flag.triggering_messages) {
+          if (Array.isArray(flag.triggering_messages)) {
+            triggeringIndices = flag.triggering_messages
+              .map((msg: any) => {
+                // Handle different possible formats
+                if (typeof msg === 'number') {
+                  return msg;
+                } else if (typeof msg === 'string') {
+                  // Remove 'MSG_' prefix if present
+                  const cleaned = msg.replace(/MSG_/i, '');
+                  return parseInt(cleaned);
+                } else {
+                  console.warn('Unexpected triggering_message format:', msg);
+                  return NaN;
+                }
+              })
+              .filter((idx: number) => !isNaN(idx) && idx >= 0 && idx < messages.length);
+          } else {
+            console.warn('triggering_messages is not an array:', flag.triggering_messages);
+          }
+        }
         
         const primaryIndex = triggeringIndices[0];
         if (primaryIndex !== undefined && messages[primaryIndex]) {
@@ -270,6 +384,10 @@ async function detectFlagsWithContextualAI(
     
   } catch (error) {
     console.error("Contextual AI flag detection failed:", error);
+    if (error instanceof Error) {
+      console.error("Error message:", error.message);
+      console.error("Error stack:", error.stack);
+    }
     return { rawRedFlags: [], greenFlags: [] };
   }
 }
@@ -299,12 +417,20 @@ async function analyzeBehavioralPatterns(
   
   try {
     const response = await openai.chat.completions.create({
-      model: process.env.OPENAI_MODEL || 'gpt-4-turbo-preview',
+      model: process.env.OPENAI_MODEL || 'gpt-4o',
       messages: [{ role: 'user', content: prompt }],
       response_format: { type: 'json_object' },
+      temperature: 0.3,
+      max_tokens: 1500,
     });
     
-    return JSON.parse(response.choices[0].message.content || '{}');
+    const content = response.choices[0]?.message?.content;
+    if (!content) {
+      console.error('No content from behavioral analysis');
+      return {};
+    }
+    
+    return JSON.parse(content);
   } catch (error) {
     console.error('Behavioral pattern analysis failed:', error);
     return {};
@@ -379,13 +505,20 @@ async function analyzeConsistencyWithAI(
   
   try {
     const response = await openai.chat.completions.create({
-      model: process.env.OPENAI_MODEL || 'gpt-4-turbo-preview',
+      model: process.env.OPENAI_MODEL || 'gpt-4o',
       messages: [{ role: 'user', content: prompt }],
       response_format: { type: 'json_object' },
       temperature: 0.1,
+      max_tokens: 2000,
     });
     
-    const result = JSON.parse(response.choices[0].message.content || '{}');
+    const content = response.choices[0]?.message?.content;
+    if (!content) {
+      console.error('No content from consistency analysis');
+      return getDefaultConsistencyAnalysis();
+    }
+    
+    const result = JSON.parse(content);
     
     // Ensure proper structure with error handling
     return {
@@ -423,16 +556,19 @@ async function analyzeConsistencyWithAI(
     
   } catch (error) {
     console.error('AI consistency analysis failed:', error);
-    // Return a safe default structure
-    return { 
-      claims: [], 
-      inconsistencies: [], 
-      evasions: [],
-      stabilityIndex: 100, 
-      summary: "Could not perform consistency analysis due to an error.",
-      suspiciousPatterns: []
-    };
+    return getDefaultConsistencyAnalysis();
   }
+}
+
+function getDefaultConsistencyAnalysis() {
+  return { 
+    claims: [], 
+    inconsistencies: [], 
+    evasions: [],
+    stabilityIndex: 100, 
+    summary: "Could not perform consistency analysis due to an error.",
+    suspiciousPatterns: []
+  };
 }
 
 // --- COMPREHENSIVE ANALYSIS WITH PSYCHOLOGICAL INSIGHTS ---
@@ -509,14 +645,20 @@ async function performComprehensiveAIAnalysis(
 
   try {
     const response = await openai.chat.completions.create({
-      model: process.env.OPENAI_MODEL || 'gpt-4-turbo-preview',
+      model: process.env.OPENAI_MODEL || 'gpt-4o',
       messages: [{ role: 'user', content: prompt }],
       response_format: { type: 'json_object' },
       max_tokens: 3000,
       temperature: 0.3,
     });
     
-    const analysis = JSON.parse(response.choices[0].message.content || '{}');
+    const content = response.choices[0]?.message?.content;
+    if (!content) {
+      console.error('No content from comprehensive analysis');
+      return getDefaultComprehensiveAnalysis(context);
+    }
+    
+    const analysis = JSON.parse(content);
     
     // Ensure all required fields exist with defaults
     return {
@@ -529,8 +671,8 @@ async function performComprehensiveAIAnalysis(
         reciprocity: {
           questionsAskedByUser: context.userMessages.filter(m => m.content.includes('?')).length,
           questionsAskedByMatch: context.matchMessages.filter(m => m.content.includes('?')).length,
-          personalInfoSharedByUser: 0,
-          personalInfoSharedByMatch: 0,
+          personalInfoSharedByUser: analysis.communicationPatterns?.personalInfoSharedByUser || 0,
+          personalInfoSharedByMatch: analysis.communicationPatterns?.personalInfoSharedByMatch || 0,
           averageMessageLengthUser: context.userMessages.reduce((sum, m) => sum + m.content.length, 0) / Math.max(1, context.userMessages.length),
           averageMessageLengthMatch: context.matchMessages.reduce((sum, m) => sum + m.content.length, 0) / Math.max(1, context.matchMessages.length),
           balanceScore: analysis.communicationPatterns?.reciprocity || 50,
@@ -550,31 +692,37 @@ async function performComprehensiveAIAnalysis(
           tone: reply.tone || 'neutral',
           content: reply.content || reply.message || 'No suggestion available',
           context: reply.context || 'General response',
-          purpose: reply.purpose || 'Safe communication'
+          purpose: reply.purpose || 'Safe communication',
+          safetyLevel: reply.safetyLevel || 'safe'
         })) : [],
       psychologicalProfile: analysis.psychologicalProfile || {},
     };
     
   } catch (error) {
     console.error('Comprehensive AI analysis failed:', error);
-    return {
-      scores: { risk: 50, trust: 50, escalation: 50 },
-      communicationPatterns: { 
-        reciprocity: {
-          questionsAskedByUser: 0,
-          questionsAskedByMatch: 0,
-          personalInfoSharedByUser: 0,
-          personalInfoSharedByMatch: 0,
-          averageMessageLengthUser: 0,
-          averageMessageLengthMatch: 0,
-          balanceScore: 50
-        },
-        summary: "Analysis could not be performed." 
-      },
-      timeline: [],
-      suggestedReplies: [],
-    };
+    return getDefaultComprehensiveAnalysis(context);
   }
+}
+
+function getDefaultComprehensiveAnalysis(context: ConversationContext) {
+  return {
+    scores: { risk: 50, trust: 50, escalation: 50 },
+    communicationPatterns: { 
+      reciprocity: {
+        questionsAskedByUser: context.userMessages.filter(m => m.content.includes('?')).length,
+        questionsAskedByMatch: context.matchMessages.filter(m => m.content.includes('?')).length,
+        personalInfoSharedByUser: 0,
+        personalInfoSharedByMatch: 0,
+        averageMessageLengthUser: context.userMessages.reduce((sum, m) => sum + m.content.length, 0) / Math.max(1, context.userMessages.length),
+        averageMessageLengthMatch: context.matchMessages.reduce((sum, m) => sum + m.content.length, 0) / Math.max(1, context.matchMessages.length),
+        balanceScore: 50
+      },
+      summary: "Analysis could not be performed." 
+    },
+    timeline: [],
+    suggestedReplies: [],
+    psychologicalProfile: {},
+  };
 }
 
 // --- ENRICHMENT WITH CONTEXTUAL ADVICE ---
@@ -638,13 +786,20 @@ async function enrichFlagsWithAIContext(
   
   try {
     const response = await openai.chat.completions.create({
-      model: process.env.OPENAI_MODEL || 'gpt-4-turbo-preview',
+      model: process.env.OPENAI_MODEL || 'gpt-4o',
       messages: [{ role: 'user', content: prompt }],
       response_format: { type: 'json_object' },
       temperature: 0.4,
+      max_tokens: 2000,
     });
     
-    const enrichedData = JSON.parse(response.choices[0].message.content || '{}');
+    const content = response.choices[0]?.message?.content;
+    if (!content) {
+      console.error('No content from flag enrichment');
+      return rawFlags;
+    }
+    
+    const enrichedData = JSON.parse(content);
     
     return rawFlags.map(flag => {
       const enrichment = enrichedData[flag.id];
@@ -791,7 +946,6 @@ function calculateAverageResponseTimes(messageFlow: MessageFlow[]): string {
   
   return `User: ${Math.round(userAvg)}s, Match: ${Math.round(matchAvg)}s`;
 }
-
 
 function generateSafetyAdvice(category: string, severity: string): string {
   const advice: Record<string, Record<string, string>> = {
