@@ -17,7 +17,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { messages: newMessages } = await request.json();
+    const { messages: newMessages, hasAnalysisContext } = await request.json();
     const lastUserMessage = newMessages[newMessages.length - 1]?.content || '';
 
     if (!openai) {
@@ -35,41 +35,78 @@ export async function POST(request: NextRequest) {
 
     const pastMessages = history ? history.messages : [];
 
-    // 3. Combine History with New Message(s)
-    // We send a rolling context of the last 10 messages to keep it efficient
-    const contextMessages = [...pastMessages, ...newMessages].slice(-10);
+    // 3. Build context messages
+    let contextMessages = [];
+    
+    // If there's analysis context, create a more detailed system message
+    if (hasAnalysisContext && newMessages[0]?.role === 'system') {
+      const analysisContext = newMessages[0].content;
+      const enhancedSystemPrompt = `${DatingSafetyPromptBuilder.getSystemPrompt()}
+
+CURRENT ANALYSIS CONTEXT:
+${analysisContext}
+
+CRITICAL INSTRUCTIONS FOR FLAG REFERENCES:
+When discussing specific flags from the analysis, you MUST format them as clickable references using this exact format:
+[[FLAG_ID::FLAG_TEXT::FLAG_TYPE]]
+
+Examples:
+- For a red flag: [[flag-123456789::Love bombing - excessive affection too quickly::red]]
+- For a green flag: [[flag-987654321::Respects boundaries when you say no::green]]
+
+The FLAG_ID must be the exact ID from the analysis context above.
+The FLAG_TEXT should be a short, descriptive summary of the flag (not the full message).
+The FLAG_TYPE must be either "red" or "green".
+
+When the user asks about:
+- "What are the red flags?" - List each red flag with its clickable reference
+- "Explain the love bombing" - Reference the specific love bombing flag with its ID
+- "Tell me about the concerns" - Reference each concerning flag individually
+- "What positive signs are there?" - Reference each green flag with its ID
+
+Always make flag names clickable so users can view the full details in the analysis dashboard.
+Be specific and reference the actual findings from the analysis, not generic examples.`;
+
+      contextMessages.push({ role: 'system', content: enhancedSystemPrompt });
+      
+      // Add the conversation context (excluding the system message)
+      contextMessages.push(...newMessages.slice(1));
+    } else {
+      // Regular conversation without analysis context
+      contextMessages = [
+        { role: 'system', content: DatingSafetyPromptBuilder.getSystemPrompt() },
+        ...pastMessages.slice(-5), // Last 5 messages for context
+        ...newMessages
+      ];
+    }
 
     // 4. Call OpenAI with Full Context
-    const systemPrompt = DatingSafetyPromptBuilder.getSystemPrompt();
-
     const completion = await openai.chat.completions.create({
       model: process.env.OPENAI_MODEL || 'gpt-4o',
-      messages: [
-        { role: 'system', content: systemPrompt },
-        // Pass the combined history and new message as context
-        ...contextMessages.map((msg: any) => ({ role: msg.role, content: msg.content })),
-      ],
+      messages: contextMessages,
       temperature: 0.7,
-      max_tokens: 500,
+      max_tokens: 700,
     });
 
     const assistantResponse = completion.choices[0].message;
 
-    // 5. Save Updated History to Supabase
-    const updatedHistory = [...contextMessages, assistantResponse];
-    await supabase
-      .from('chat_history')
-      .upsert({
-        user_id: user.id,
-        messages: updatedHistory,
-      }, { onConflict: 'user_id' });
+    // 5. Save Updated History to Supabase (only text messages, not analysis context)
+    if (!hasAnalysisContext) {
+      const updatedHistory = [...pastMessages, ...newMessages.filter(m => m.role !== 'system'), assistantResponse];
+      await supabase
+        .from('chat_history')
+        .upsert({
+          user_id: user.id,
+          messages: updatedHistory.slice(-20), // Keep last 20 messages
+        }, { onConflict: 'user_id' });
+    }
     
     return NextResponse.json({ content: assistantResponse.content || "I'm not sure how to respond to that. Could you ask in a different way?" });
 
   } catch (error) {
     console.error('Chat API error:', error);
     
-    // --- YOUR EXCELLENT FALLBACK LOGIC IS PRESERVED HERE ---
+    // Enhanced fallback responses
     let lastMessage = '';
     try {
       const body = await request.clone().json();
@@ -78,14 +115,17 @@ export async function POST(request: NextRequest) {
       lastMessage = '';
     }
     
-    let fallbackResponse = "I seem to be having trouble connecting to my full brain right now, but I can still help! You can ask me general questions about red flags, safety, or what to do on a first date.";
+    let fallbackResponse = "I seem to be having trouble connecting to my full brain right now, but I can still help! You can ask me general questions about red flags, safety, or what to do about concerning behavior.";
     
-    if (lastMessage.includes('red flag')) {
-      fallbackResponse = "Common red flags include: asking for money, avoiding video calls, pushing to move off the app quickly, love bombing (excessive affection too soon), and inconsistent stories. Would you like me to explain any of these in detail?";
-    } else if (lastMessage.includes('money') || lastMessage.includes('financial')) {
-      fallbackResponse = "🚩 MAJOR RED FLAG! Never send money to someone you've only met online. This is very often a romance scam. Please be careful, and do not share any financial information.";
-    } else if (lastMessage.includes('meet') || lastMessage.includes('date')) {
-      fallbackResponse = "For a safe first meeting: 1) Always meet in a public place, 2) Tell a friend your plans, 3) Have your own transportation, 4) Trust your gut. How long have you been chatting with this person?";
+    // Enhanced fallback logic for analysis questions
+    if (lastMessage.includes('red flag') || lastMessage.includes('concern')) {
+      fallbackResponse = "While I can't access the specific flags right now, common red flags include: love bombing, financial requests, avoiding video calls, and pushing boundaries. Click 'View Full Analysis' to see your specific results.";
+    } else if (lastMessage.includes('explain') || lastMessage.includes('what does')) {
+      fallbackResponse = "I'd love to explain the specific flags in detail, but I'm having connection issues. You can click 'View Full Analysis' above to see detailed explanations of each flag, or try asking again in a moment.";
+    } else if (lastMessage.includes('respond') || lastMessage.includes('reply')) {
+      fallbackResponse = "For safe responses: 1) Set clear boundaries, 2) Don't share personal/financial info, 3) Trust your gut, 4) If uncomfortable, it's okay to unmatch. Check the 'Suggested Replies' in your full analysis for specific examples.";
+    } else if (lastMessage.includes('safe') || lastMessage.includes('danger')) {
+      fallbackResponse = "Your safety is paramount. High risk scores (70%+) or critical flags mean you should consider ending contact. Click 'View Full Analysis' to see your specific safety recommendations and exit strategies.";
     }
     
     return NextResponse.json({ content: fallbackResponse });

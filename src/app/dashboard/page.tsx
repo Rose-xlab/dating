@@ -18,6 +18,8 @@ export default function DashboardPage() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(null);
   const [showSenderConfig, setShowSenderConfig] = useState(false);
+  const [showFullAnalysis, setShowFullAnalysis] = useState(false);
+  const [focusedFlagId, setFocusedFlagId] = useState<string | null>(null);
   const [userPosition, setUserPosition] = useState<'left' | 'right'>('right');
   const supabase = createClient();
 
@@ -46,14 +48,22 @@ export default function DashboardPage() {
         body: JSON.stringify({ text, userPosition }),
       });
 
-      if (!response.ok) {
-        const err = await response.json();
-        throw new Error(err.error || 'Failed to get analysis from server.');
+      const data = await response.json();
+      
+      if (response.status === 400 && data.requiresUserIdentifier) {
+        // This should be handled by ChatInterface
+        console.log('User identification required - handled by ChatInterface');
+        setIsProcessing(false);
+        return;
       }
 
-      const { result } = await response.json();
-      setAnalysisResult(result);
-      toast.success('Analysis complete!');
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to get analysis from server.');
+      }
+
+      setAnalysisResult(data.result);
+      // Don't show the full modal immediately - let the user see the summary first
+      toast.success('Analysis complete! View summary in chat or click for full details.');
 
     } catch (error) {
       console.error('Text analysis error:', error);
@@ -85,7 +95,8 @@ export default function DashboardPage() {
 
       const { result } = await response.json();
       setAnalysisResult(result);
-      toast.success('Analysis complete!');
+      // Don't show the full modal immediately
+      toast.success('Analysis complete! View summary in chat or click for full details.');
 
     } catch (error) {
       console.error('Image processing error:', error);
@@ -93,6 +104,17 @@ export default function DashboardPage() {
     } finally {
       setIsProcessing(false);
     }
+  };
+
+  const handleAnalysisComplete = (result: AnalysisResult) => {
+    setAnalysisResult(result);
+    setIsProcessing(false);
+  };
+
+  const handleViewFullAnalysis = (result: AnalysisResult, focusFlagId?: string) => {
+    setAnalysisResult(result);
+    setFocusedFlagId(focusFlagId || null);
+    setShowFullAnalysis(true);
   };
 
   return (
@@ -151,10 +173,31 @@ export default function DashboardPage() {
                       onAnalyzeScreenshot={handleImageSubmit}
                       onAnalyzeText={handleTextSubmit}
                       isProcessing={isProcessing}
+                      analysisResult={analysisResult}
+                      onAnalysisComplete={handleAnalysisComplete}
+                      onViewFullAnalysis={handleViewFullAnalysis}
                     />
                   </motion.div>
                 )}
               </AnimatePresence>
+            </div>
+          </motion.div>
+
+          {/* Quick tips */}
+          <motion.div 
+            initial={{ opacity: 0, y: 20 }} 
+            animate={{ opacity: 1, y: 0 }} 
+            transition={{ duration: 0.6, delay: 0.4 }}
+            className="max-w-4xl mx-auto mt-8"
+          >
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+              <h3 className="text-sm font-semibold text-blue-900 mb-2">💡 Pro Tips:</h3>
+              <ul className="text-sm text-blue-800 space-y-1">
+                <li>• Analysis summaries appear in the chat - click "View Full Analysis" for detailed insights</li>
+                <li>• When asking about flags, the AI will show <span className="bg-red-100 text-red-700 px-1 rounded">clickable links</span> to view specific flags</li>
+                <li>• Click any flag name in the chat to jump directly to it in the detailed report</li>
+                <li>• Your conversation history is saved securely and can be accessed from "My Analyses"</li>
+              </ul>
             </div>
           </motion.div>
         </div>
@@ -168,11 +211,16 @@ export default function DashboardPage() {
         />
       )}
 
-      {analysisResult && (
+      {/* Full Analysis Dashboard Modal */}
+      {showFullAnalysis && analysisResult && (
         <AnalysisDashboard
           user={user}
           result={analysisResult}
-          onClose={() => setAnalysisResult(null)}
+          onClose={() => {
+            setShowFullAnalysis(false);
+            setFocusedFlagId(null);
+          }}
+          focusedFlagId={focusedFlagId}
         />
       )}
     </div>
