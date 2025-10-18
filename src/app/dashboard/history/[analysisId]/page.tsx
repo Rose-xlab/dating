@@ -6,41 +6,34 @@ import AnalysisDetailClient from '@/components/AnalysisDetailClient';
 
 export default async function AnalysisDetailPage({ params }: { params: { analysisId: string } }) {
   const supabase = createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const { analysisId } = params;
 
-  if (!user) {
-    return notFound();
-  }
-
-  const { data: dbResult } = await supabase
+  const { data: analysis, error } = await supabase
     .from('analysis_results')
     .select('*')
-    .eq('id', params.analysisId)
-    .eq('user_id', user.id)
+    .eq('id', analysisId)
     .single();
 
-  if (!dbResult) {
+  if (error || !analysis) {
     notFound();
   }
   
-  // --- START: NEW CODE ---
-  // Transform the database data to match the component's expected props
-  const formattedResult = {
-    id: dbResult.id,
-    createdAt: dbResult.created_at,
-    chatContent: dbResult.chat_content, // Map snake_case to camelCase
-    riskScore: dbResult.risk_score,
-    trustScore: dbResult.trust_score,
-    escalationIndex: dbResult.escalation_index,
-    flags: dbResult.flags,
-    timeline: dbResult.timeline,
-    reciprocityScore: dbResult.reciprocity_score,
-    consistencyAnalysis: dbResult.consistency_analysis,
-    suggestedReplies: dbResult.suggested_replies,
-    evidence: dbResult.evidence,
+  // Manually map snake_case from DB to camelCase for the component
+  const formattedAnalysis = {
+    id: analysis.id,
+    createdAt: analysis.created_at,
+    riskScore: analysis.risk_score,
+    trustScore: analysis.trust_score,
+    escalationIndex: analysis.escalation_index,
+    chatContent: analysis.chat_content,
+    flags: analysis.flags,
+    timeline: analysis.timeline,
+    reciprocityScore: analysis.reciprocity_score,
+    consistencyAnalysis: analysis.consistency_analysis,
+    suggestedReplies: analysis.suggested_replies,
+    evidence: analysis.evidence,
+    ocrMetadata: analysis.metadata
   };
-  // --- END: NEW CODE ---
-  
-  // Pass the newly formatted object to the client component
-  return <AnalysisDetailClient result={formattedResult} user={user} />;
+
+  return <AnalysisDetailClient analysis={formattedAnalysis} />;
 }

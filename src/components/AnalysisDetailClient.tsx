@@ -1,19 +1,41 @@
 // src/components/AnalysisDetailClient.tsx
 
-"use client";
+'use client';
 
-import { useRouter } from 'next/navigation';
 import AnalysisDashboard from '@/components/AnalysisDashboard';
+import { AnalysisResult } from '@/types';
+import { useRouter } from 'next/navigation';
+import { createClient } from '@/lib/supabase/client';
+import { useEffect, useState } from 'react';
+import { User } from '@supabase/supabase-js';
 
-// Define types for the props for better code quality
 interface AnalysisDetailClientProps {
-  result: any; // Ideally, replace 'any' with a more specific type for your analysis result
-  user: any;   // Replace 'any' with your User type
+  analysis: AnalysisResult;
 }
 
-export default function AnalysisDetailClient({ result, user }: AnalysisDetailClientProps) {
+export default function AnalysisDetailClient({ analysis }: AnalysisDetailClientProps) {
   const router = useRouter();
+  const [user, setUser] = useState<User | null>(null);
+
+  useEffect(() => {
+    const fetchUser = async () => {
+      const supabase = createClient();
+      const { data: { user } } = await supabase.auth.getUser();
+      setUser(user);
+    };
+    fetchUser();
+  }, []);
   
-  // The onClose function now correctly uses the router instance
-  return <AnalysisDashboard result={result} user={user} onClose={() => router.back()} />;
+  if (!user) {
+    // You can return a loader here as well if you'd like
+    return null; 
+  }
+
+  return (
+    <AnalysisDashboard
+      result={analysis}
+      user={user}
+      onClose={() => router.push('/dashboard/history')}
+    />
+  );
 }

@@ -1,8 +1,6 @@
 'use client';
 
-import Link from 'next/link';
 import { ShieldCheck, Sparkles, BarChart2, ArrowRight, Bot, MessageSquare, ScanSearch, Check } from 'lucide-react';
-// FIXED: Added AnimatePresence to the import
 import { motion, AnimatePresence } from 'framer-motion';
 import { useState } from 'react';
 
@@ -103,22 +101,22 @@ export default function HomePage() {
       <header className="bg-white/80 backdrop-blur-md sticky top-0 z-50 border-b border-gray-100">
         <div className="max-w-7xl mx-auto px-6 lg:px-8">
             <nav className="flex items-center justify-between h-20">
-              <Link href="/" className="flex items-center space-x-3">
+              <a href="/" className="flex items-center space-x-3">
                   <ShieldCheck className="w-8 h-8 text-blue-500" />
                   <span className="text-2xl font-bold text-gray-900 tracking-tight">Swipe Safe</span>
-              </Link>
+              </a>
               <div className="hidden md:flex items-center space-x-8">
-                <Link href="#features" className="text-sm font-medium text-gray-600 hover:text-blue-600 transition-colors">Features</Link>
-                <Link href="#how-it-works" className="text-sm font-medium text-gray-600 hover:text-blue-600 transition-colors">How It Works</Link>
-                <Link href="#faq" className="text-sm font-medium text-gray-600 hover:text-blue-600 transition-colors">FAQ</Link>
+                <a href="#features" className="text-sm font-medium text-gray-600 hover:text-blue-600 transition-colors">Features</a>
+                <a href="#how-it-works" className="text-sm font-medium text-gray-600 hover:text-blue-600 transition-colors">How It Works</a>
+                <a href="#faq" className="text-sm font-medium text-gray-600 hover:text-blue-600 transition-colors">FAQ</a>
               </div>
               <div className="flex items-center">
-                <Link
-                  href="/dashboard"
+                <a
+                  href="/dashboard/chat/new"
                   className="rounded-full bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white shadow-lg hover:bg-blue-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600 transition-transform active:scale-95"
                 >
                   Get Started
-                </Link>
+                </a>
               </div>
             </nav>
         </div>
@@ -140,12 +138,12 @@ export default function HomePage() {
                             Our AI analyzes your dating conversations for red flags and positive signs, giving you the clarity you need to connect safely.
                         </p>
                         <div className="mt-10 flex items-center justify-center gap-x-6">
-                            <Link
-                                href="/dashboard"
+                            <a
+                                href="/dashboard/chat/new"
                                 className="rounded-full bg-blue-600 px-8 py-3 text-base font-semibold text-white shadow-lg hover:bg-blue-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600 transition-transform active:scale-95"
                             >
                                 Analyze a Chat for Free <ArrowRight className="inline ml-2 h-5 w-5"/>
-                            </Link>
+                            </a>
                         </div>
                     </motion.div>
                 </div>
@@ -159,7 +157,7 @@ export default function HomePage() {
         <section id="how-it-works" className="bg-gray-50 py-24 sm:py-32">
             <div className="mx-auto max-w-7xl px-6 lg:px-8">
                 <div className="mx-auto max-w-2xl lg:text-center">
-                     <h2 className="text-base font-semibold leading-7 text-blue-600">Simple & Secure</h2>
+                       <h2 className="text-base font-semibold leading-7 text-blue-600">Simple & Secure</h2>
                     <p className="mt-2 text-3xl font-bold tracking-tight text-gray-900 sm:text-4xl">Get Clarity in 3 Easy Steps</p>
                 </div>
                 <div className="mx-auto mt-20 max-w-lg space-y-12 lg:max-w-none">
@@ -224,9 +222,9 @@ export default function HomePage() {
       <footer className="bg-white border-t border-gray-100">
         <div className="mx-auto max-w-7xl overflow-hidden px-6 py-12 lg:px-8">
             <nav className="mb-8 flex justify-center space-x-6" aria-label="Footer">
-                <Link href="#features" className="text-sm leading-6 text-gray-600 hover:text-gray-900">Features</Link>
-                <Link href="#how-it-works" className="text-sm leading-6 text-gray-600 hover:text-gray-900">How It Works</Link>
-                <Link href="#faq" className="text-sm leading-6 text-gray-600 hover:text-gray-900">FAQ</Link>
+                <a href="#features" className="text-sm leading-6 text-gray-600 hover:text-gray-900">Features</a>
+                <a href="#how-it-works" className="text-sm leading-6 text-gray-600 hover:text-gray-900">How It Works</a>
+                <a href="#faq" className="text-sm leading-6 text-gray-600 hover:text-gray-900">FAQ</a>
             </nav>
             <p className="text-center text-xs leading-5 text-gray-500">
                 &copy; {new Date().getFullYear()} Swipe Safe. All rights reserved.
@@ -236,3 +234,4 @@ export default function HomePage() {
     </div>
   );
 }
+

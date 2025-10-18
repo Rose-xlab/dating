@@ -1,6 +1,4 @@
-﻿//src\types\supabase.ts
-
-export type Json =
+﻿export type Json =
   | string
   | number
   | boolean
@@ -75,6 +73,89 @@ export type Database = {
           },
         ]
       }
+      chat_history: {
+        Row: {
+          created_at: string | null
+          id: string
+          messages: Json
+          session_id: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          messages: Json
+          session_id?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          messages?: Json
+          session_id?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "chat_history_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: true
+            referencedRelation: "chat_sessions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "chat_history_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      chat_sessions: {
+        Row: {
+          analysis_ids: string[] | null
+          created_at: string | null
+          has_analysis: boolean | null
+          id: string
+          last_message_at: string | null
+          message_count: number | null
+          title: string
+          updated_at: string | null
+          user_id: string | null
+        }
+        Insert: {
+          analysis_ids?: string[] | null
+          created_at?: string | null
+          has_analysis?: boolean | null
+          id?: string
+          last_message_at?: string | null
+          message_count?: number | null
+          title?: string
+          updated_at?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          analysis_ids?: string[] | null
+          created_at?: string | null
+          has_analysis?: boolean | null
+          id?: string
+          last_message_at?: string | null
+          message_count?: number | null
+          title?: string
+          updated_at?: string | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "chat_sessions_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       feedback: {
         Row: {
           analysis_id: string | null
@@ -108,7 +189,7 @@ export type Database = {
             foreignKeyName: "feedback_user_id_fkey"
             columns: ["user_id"]
             isOneToOne: false
-            referencedRelation: "users"
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]
@@ -116,18 +197,24 @@ export type Database = {
       profiles: {
         Row: {
           analysis_count: number
+          created_at: string | null
+          email: string | null
           id: string
           subscription: string
           updated_at: string | null
         }
         Insert: {
           analysis_count?: number
+          created_at?: string | null
+          email?: string | null
           id: string
           subscription?: string
           updated_at?: string | null
         }
         Update: {
           analysis_count?: number
+          created_at?: string | null
+          email?: string | null
           id?: string
           subscription?: string
           updated_at?: string | null
@@ -167,7 +254,7 @@ export type Database = {
             foreignKeyName: "saved_analyses_user_id_fkey"
             columns: ["user_id"]
             isOneToOne: false
-            referencedRelation: "users"
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]
@@ -199,37 +286,10 @@ export type Database = {
             foreignKeyName: "usage_tracking_user_id_fkey"
             columns: ["user_id"]
             isOneToOne: false
-            referencedRelation: "users"
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]
-      }
-      users: {
-        Row: {
-          analysis_count: number | null
-          created_at: string | null
-          email: string
-          id: string
-          subscription: string | null
-          updated_at: string | null
-        }
-        Insert: {
-          analysis_count?: number | null
-          created_at?: string | null
-          email: string
-          id: string
-          subscription?: string | null
-          updated_at?: string | null
-        }
-        Update: {
-          analysis_count?: number | null
-          created_at?: string | null
-          email?: string
-          id?: string
-          subscription?: string | null
-          updated_at?: string | null
-        }
-        Relationships: []
       }
     }
     Views: {

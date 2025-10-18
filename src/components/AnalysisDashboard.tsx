@@ -1,5 +1,3 @@
-//src/components/AnalysisDashboard.tsx
-
 "use client";
 
 import React, { useState, useMemo } from 'react';
@@ -29,6 +27,7 @@ interface AnalysisDashboardProps {
   user: User | null;
   result: AnalysisResult;
   onClose: () => void;
+  focusedFlagId: string | null;
 }
 
 export default function AnalysisDashboard({ user, result, onClose }: AnalysisDashboardProps) {
@@ -309,7 +308,7 @@ export default function AnalysisDashboard({ user, result, onClose }: AnalysisDas
                   exit={{ opacity: 0, y: -20 }} 
                   className="space-y-6"
                 >
-                  <ConsistencyReport consistency={result.consistencyAnalysis} />
+                  {result.consistencyAnalysis && <ConsistencyReport consistency={result.consistencyAnalysis} />}
                   
                   <div>
                     <h3 className="text-lg font-semibold text-gray-900 mb-4">All Detected Patterns</h3>
@@ -552,15 +551,19 @@ export default function AnalysisDashboard({ user, result, onClose }: AnalysisDas
                         "This conversation appears relatively safe, but always stay alert and trust your instincts."
                       }
                     </p>
-                    {result.consistencyAnalysis.summary && (
+                    {/* MODIFICATION START: Safely access summary with optional chaining */}
+                    {result.consistencyAnalysis?.summary && (
                       <p className="text-sm text-gray-700 italic">
                         {result.consistencyAnalysis.summary}
                       </p>
                     )}
+                    {/* MODIFICATION END */}
                   </div>
 
                   {/* Suggested Replies */}
-                  {result.suggestedReplies.length > 0 && (
+                  {/* MODIFICATION START: Safely access suggestedReplies with optional chaining */}
+                  {result.suggestedReplies?.length > 0 && (
+                  // MODIFICATION END
                     <div>
                       <h3 className="text-lg font-semibold mb-4">Suggested Safe Responses</h3>
                       <div className="space-y-3">
