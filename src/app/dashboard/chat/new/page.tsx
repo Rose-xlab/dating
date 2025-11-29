@@ -1,30 +1,49 @@
-// src/app/dashboard/chat/new/page.tsx
-'use server';
-
-import { createClient } from '@/lib/supabase/server';
-import { redirect } from 'next/navigation';
+import { lucia } from "@/lib/auth";
+import { cookies } from "next/headers";
+import { redirect } from "next/navigation";
+import postgres from "postgres";
 
 export default async function NewChatPage() {
-  const supabase = createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+    // 1. Verify Session (The Lucia Way)
+    const sessionId = cookies().get(lucia.sessionCookieName)?.value ?? null;
+    if (!sessionId) redirect("/login");
 
-  if (!user) {
-    return redirect('/login');
-  }
+    const { user } = await lucia.validateSession(sessionId);
+    if (!user) redirect("/login");
 
-  // Create a new chat session
-  const { data, error } = await supabase
-    .from('chat_sessions')
-    .insert({ user_id: user.id, title: 'New Conversation' })
-    .select('id')
-    .single();
+    // 2. Database Connection (Direct & Reliable)
+    // We use the same 'aws-1' string that passed your test.
+    const connectionString = "postgres://postgres.hqwbtsevwmbsmrrthbkl:SecurePass20252025@aws-1-eu-north-1.pooler.supabase.com:6543/postgres";
+    const sql = postgres(connectionString, {
+        ssl: "require",
+        prepare: false,
+    });
 
-  if (error || !data) {
-    console.error('Error creating new chat session:', error);
-    // Redirect to a safe page if creation fails
-    return redirect('/dashboard'); 
-  }
+    try {
+        // 3. Create the New Chat Session directly in the DB
+        const [newSession] = await sql`
+            INSERT INTO chat_sessions (user_id, title)
+            VALUES (${user.id}, 'New Conversation')
+            RETURNING id
+        `;
 
-  // Redirect to the new chat page
-  redirect(`/dashboard/chat/${data.id}`);
-}   
+        if (!newSession) {
+            throw new Error("Failed to create session");
+        }
+
+        // 4. Redirect to the new chat
+        redirect(`/dashboard/chat/${newSession.id}`);
+
+    } catch (error) {
+        console.error("Error creating chat:", error);
+        // If redirect throws (which is normal in Next.js), let it bubble up
+        if ((error as any).digest?.startsWith('NEXT_REDIRECT')) {
+            throw error;
+        }
+        // Otherwise go back to dashboard
+        redirect("/dashboard");
+    } finally {
+        // Close connection to prevent leaks
+        await sql.end(); 
+    }
+}

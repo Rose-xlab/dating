@@ -7,6 +7,7 @@ import OpenAI from 'openai';
 import { ChatMessage } from '@/types';
 import { Json } from '@/types/supabase';
 import type { User } from '@supabase/supabase-js';
+import { ratelimit } from '@/lib/rate-limit';
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -22,6 +23,11 @@ export async function POST(request: NextRequest) {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const { success } = await ratelimit.limit(user.id);
+    if (!success) {
+      return NextResponse.json({ error: 'Too many requests' }, { status: 429 });
     }
 
     const formData = await request.formData();

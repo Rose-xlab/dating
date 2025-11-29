@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import OpenAI from 'openai';
 import { createClient } from '@/lib/supabase/server';
 import { DatingSafetyPromptBuilder } from '@/lib/prompt-builder';
+import { ratelimit } from '@/lib/rate-limit';
 
 const openai = process.env.OPENAI_API_KEY ? new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -17,6 +18,12 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
+    // 2. Rate limit per user
+    const { success } = await ratelimit.limit(user.id);
+    if (!success) {
+        return NextResponse.json({ error: 'Too many requests' }, { status: 429 });
+    }
+
     const { messages: newMessages, hasAnalysisContext } = await request.json();
     const lastUserMessage = newMessages[newMessages.length - 1]?.content || '';
 
@@ -26,7 +33,7 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // 2. Fetch Chat History from Supabase
+    // 3. Fetch Chat History from Supabase
     const { data: history } = await supabase
       .from('chat_history')
       .select('messages')
@@ -35,7 +42,7 @@ export async function POST(request: NextRequest) {
 
     const pastMessages = history ? history.messages : [];
 
-    // 3. Build context messages
+    // 4. Build context messages
     let contextMessages = [];
     
     // If there's analysis context, create a more detailed system message
@@ -80,7 +87,7 @@ Be specific and reference the actual findings from the analysis, not generic exa
       ];
     }
 
-    // 4. Call OpenAI with Full Context
+    // 5. Call OpenAI with Full Context
     const completion = await openai.chat.completions.create({
       model: process.env.OPENAI_MODEL || 'gpt-4o',
       messages: contextMessages,
@@ -90,7 +97,7 @@ Be specific and reference the actual findings from the analysis, not generic exa
 
     const assistantResponse = completion.choices[0].message;
 
-    // 5. Save Updated History to Supabase (only text messages, not analysis context)
+    // 6. Save Updated History to Supabase (only text messages, not analysis context)
     if (!hasAnalysisContext) {
       const updatedHistory = [...pastMessages, ...newMessages.filter(m => m.role !== 'system'), assistantResponse];
       await supabase

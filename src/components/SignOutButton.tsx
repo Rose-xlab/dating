@@ -1,23 +1,30 @@
-'use client';
-import { createClient } from '@/lib/supabase/client';
+"use client";
 import { useRouter } from 'next/navigation';
 
-export default function SignOutButton() {
+const SignOutButton = () => {
   const router = useRouter();
-  const supabase = createClient();
 
   const handleSignOut = async () => {
-    await supabase.auth.signOut();
-    router.push('/');
-    router.refresh();
+    const response = await fetch('/api/auth/logout', {
+      method: 'POST',
+    });
+
+    if (response.ok) {
+      router.push('/login');
+    } else {
+      // Handle error
+      console.error('Failed to sign out');
+    }
   };
 
   return (
     <button
       onClick={handleSignOut}
-      className="text-sm font-medium text-gray-600 hover:text-blue-600 transition-colors"
+      className="px-4 py-2 text-white bg-red-600 rounded-md hover:bg-red-700"
     >
       Sign Out
     </button>
   );
-}
+};
+
+export default SignOutButton;

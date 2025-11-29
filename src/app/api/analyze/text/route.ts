@@ -10,6 +10,7 @@ import {
   detectWhatsAppFormat, 
   extractSenderNames 
 } from '@/lib/parsers/whatsapp-parser';
+import { ratelimit } from '@/lib/rate-limit';
 
 function parseTextToMessages(text: string): ChatMessage[] {
   const lines = text.split('\n').filter(line => line.trim());
@@ -52,7 +53,13 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // 2. Get text and platform info from request
+    // 2. Rate limit per user
+    const { success } = await ratelimit.limit(user.id);
+    if (!success) {
+      return NextResponse.json({ error: 'Too many requests' }, { status: 429 });
+    }
+
+    // 3. Get text and platform info from request
     const { text, platform, userIdentifier } = await request.json();
 
     if (!text || typeof text !== 'string') {
@@ -62,7 +69,7 @@ export async function POST(request: NextRequest) {
     let messages: ChatMessage[];
     let analysisMetadata: any = {};
 
-    // 3. Detect if this is WhatsApp format
+    // 4. Detect if this is WhatsApp format
     const isWhatsApp = platform === 'whatsapp' || detectWhatsAppFormat(text);
 
     if (isWhatsApp) {
@@ -109,10 +116,10 @@ export async function POST(request: NextRequest) {
       }, { status: 400 });
     }
 
-    // 4. Run the analysis with metadata
+    // 5. Run the analysis with metadata
     const analysisResult = await analyzeConversationWithContext(messages, analysisMetadata);
 
-    // 5. Enhance analysis with WhatsApp-specific concerns
+    // 6. Enhance analysis with WhatsApp-specific concerns
     if (isWhatsApp && analysisMetadata.harassmentIndicators) {
       const { excessiveCalls, callCount, thirdPartyContact } = analysisMetadata.harassmentIndicators;
       
@@ -153,7 +160,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // 6. Save to database with enhanced metadata
+    // 7. Save to database with enhanced metadata
     await supabase
       .from('analysis_results')
       .insert({
@@ -176,7 +183,7 @@ export async function POST(request: NextRequest) {
         } as Json,
       });
 
-    // 7. Return enhanced result
+    // 8. Return enhanced result
     return NextResponse.json({ 
       result: analysisResult,
       metadata: analysisMetadata 

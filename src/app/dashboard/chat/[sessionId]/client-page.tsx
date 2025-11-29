@@ -11,6 +11,11 @@ import toast from 'react-hot-toast';
 import { createClient } from '@/lib/supabase/client';
 import type { User } from '@supabase/supabase-js';
 
+interface ChatSession {
+    id: string;
+    title: string | null;
+}
+
 export interface Message {
   id: string;
   role: 'user' | 'assistant' | 'system';
@@ -36,6 +41,7 @@ export default function DashboardClientPage({
   const [messages, setMessages] = useState<Message[]>(initialMessages); // State is now managed here
   const [isProcessing, setIsProcessing] = useState(false);
   const [activeAnalysis, setActiveAnalysis] = useState<AnalysisResult | null>(null);
+  const [sessionData, setSessionData] = useState<ChatSession | null>(null);
   const [showFullAnalysis, setShowFullAnalysis] = useState(false);
   const [focusedFlagId, setFocusedFlagId] = useState<string | null>(null);
   const [showSenderConfig, setShowSenderConfig] = useState(false);
@@ -44,12 +50,25 @@ export default function DashboardClientPage({
   const isInitialMount = useRef(true);
 
   useEffect(() => {
-    const fetchUser = async () => {
+    const fetchUserAndSession = async () => {
       const { data: { user } } = await supabase.auth.getUser();
       setUser(user);
+      if (user) {
+        const { data: session, error } = await supabase
+          .from('chat_sessions')
+          .select('id, title')
+          .eq('id', sessionId)
+          .single();
+
+        if (error) {
+          console.error('Error fetching session data:', error);
+        } else {
+          setSessionData(session);
+        }
+      }
     };
-    fetchUser();
-  }, [supabase.auth]);
+    fetchUserAndSession();
+  }, [supabase.auth, sessionId]);
 
   // Debounced effect to save chat history whenever messages change
   useEffect(() => {
@@ -67,7 +86,7 @@ export default function DashboardClientPage({
 
       // Cleanup function to cancel the timer if messages change again quickly.
       return () => clearTimeout(handler);
-  }, [messages, sessionId]); // Rerun this effect if messages or sessionId change
+  }, [messages, sessionId, sessionData]); // Rerun this effect if messages or sessionId change
 
   // When the session ID changes, reset messages to the new initial messages
   useEffect(() => {
@@ -87,7 +106,7 @@ export default function DashboardClientPage({
 
   const saveChatHistory = async (currentMessages: Message[]) => {
       // Don't save if there's no session or the message list is empty/default.
-      if (!sessionId || !user || currentMessages.length === 0 || currentMessages.length === 1 && currentMessages[0].id === '1') return;
+      if (!sessionId || !user || currentMessages.length === 0 || (currentMessages.length === 1 && currentMessages[0].id === '1')) return;
 
       try {
           // Prepare messages for storage, converting Date objects to ISO strings
@@ -112,10 +131,47 @@ export default function DashboardClientPage({
 
           console.log("Chat history saved successfully.");
 
+          // After saving, check if we need to generate a title
+          if (!sessionData?.title && currentMessages.length > 2) {
+            generateAndSaveTitle(currentMessages);
+          }
+
       } catch (error) {
           console.error("Error saving chat history:", error);
           toast.error("Could not save chat history.");
       }
+  };
+
+  const generateAndSaveTitle = async (currentMessages: Message[]) => {
+    try {
+      const response = await fetch('/api/chat/sessions/generate-title', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ messages: currentMessages.slice(0, 5) }), // Send first 5 messages
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to generate title');
+      }
+
+      const { title } = await response.json();
+
+      if (title) {
+        const { error: updateError } = await supabase
+          .from('chat_sessions')
+          .update({ title: title })
+          .eq('id', sessionId);
+
+        if (updateError) throw updateError;
+        
+        // Update local state to prevent re-generation
+        setSessionData(prev => prev ? { ...prev, title } : { id: sessionId, title });
+        toast.success("Chat title generated!");
+      }
+    } catch (error) {
+      console.error("Error generating title:", error);
+      // We don't show a toast here to avoid bothering the user for a background task.
+    }
   };
 
   const saveAnalysisResult = async (result: AnalysisResult, session_id: string): Promise<string | null> => {
@@ -233,8 +289,8 @@ export default function DashboardClientPage({
   };
 
   return (
-    <div className="p-4 sm:p-6 lg:p-8 h-full flex items-center justify-center bg-gray-50">
-        <div className="w-full max-w-4xl h-full">
+    <div className="h-full">
+        <div className="h-full">
             <ChatInterface
               sessionId={sessionId}
               messages={messages} // Pass the state down

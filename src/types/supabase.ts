@@ -1,4 +1,6 @@
-﻿export type Json =
+﻿//C:\Users\mukas\OneDrive\Desktop\date\dating\src\types\supabase.ts
+
+export type Json =
   | string
   | number
   | boolean

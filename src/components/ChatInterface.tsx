@@ -371,9 +371,9 @@ export default function ChatInterface({
 
   return (
     <>
-      <div className="flex flex-col h-full bg-white md:rounded-2xl md:shadow-xl">
-        <div className="bg-gradient-to-r from-blue-500 to-indigo-600 text-white p-4 md:rounded-t-2xl">
-          <div className="flex items-center justify-between">
+      <div className="flex flex-col h-full bg-white">
+        <div className="bg-gradient-to-r from-blue-500 to-indigo-600 text-white p-4">
+          <div className="flex items-center justify-between max-w-4xl mx-auto">
             <div className="flex items-center space-x-3">
               <SparklesIcon className="w-8 h-8" />
               <div>
@@ -400,126 +400,126 @@ export default function ChatInterface({
           </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto p-4 space-y-4">
-          <AnimatePresence>
-            {messages.map((message) => (
-              <motion.div 
-                key={message.id} 
-                initial={{ opacity: 0, y: 10 }} 
-                animate={{ opacity: 1, y: 0 }} 
-                exit={{ opacity: 0 }} 
-                className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
-              >
-                {message.type === 'analysis' && message.analysisResult ? (
-                  <div className="w-full max-w-lg">
-                    <AnalysisSummaryCard 
-                      result={message.analysisResult} 
-                      onViewFull={() => onViewFullAnalysis(message.analysisResult!)}
-                    />
-                  </div>
-                ) : (
-                  <div className={`flex items-start space-x-2 max-w-[80%] ${
-                    message.role === 'user' ? 'flex-row-reverse space-x-reverse' : ''
-                  }`}>
-                    <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${
-                      message.role === 'user' ? 'bg-blue-500' : 'bg-indigo-500'
-                    }`}>
-                      {message.role === 'user' ? 
-                        <UserIcon className="w-5 h-5 text-white" /> : 
-                        <SparklesIcon className="w-5 h-5 text-white" />
-                      }
+        <div className="flex-1 overflow-y-auto p-4 space-y-6">
+          <div className="max-w-4xl mx-auto w-full">
+            <AnimatePresence>
+              {messages.map((message) => (
+                <motion.div 
+                  key={message.id} 
+                  initial={{ opacity: 0, y: 10 }} 
+                  animate={{ opacity: 1, y: 0 }} 
+                  exit={{ opacity: 0 }} 
+                  className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
+                >
+                  {message.type === 'analysis' && message.analysisResult ? (
+                    <div className="w-full max-w-lg">
+                      <AnalysisSummaryCard 
+                        result={message.analysisResult} 
+                        onViewFull={() => onViewFullAnalysis(message.analysisResult!)}
+                      />
                     </div>
-                    <div className={`rounded-lg px-4 py-2 ${
-                      message.role === 'user' ? 'bg-blue-500 text-white' : 'bg-gray-100 text-gray-800'
+                  ) : (
+                    <div className={`flex items-start space-x-2 max-w-[80%] ${
+                      message.role === 'user' ? 'flex-row-reverse space-x-reverse' : ''
                     }`}>
-                      {message.role === 'assistant' && message.flagReferences ? (
-                        <MessageWithFlagLinks 
-                          content={message.content}
-                          flagReferences={message.flagReferences}
-                          onFlagClick={handleFlagClick}
-                        />
-                      ) : (
-                        <p className="whitespace-pre-wrap">{message.content}</p>
-                      )}
-                      <p className={`text-xs mt-1 ${
-                        message.role === 'user' ? 'text-blue-100' : 'text-gray-500'
+                      <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${
+                        message.role === 'user' ? 'bg-blue-500' : 'bg-indigo-500'
                       }`}>
-                        {formatTime(message.timestamp)}
-                      </p>
+                        {message.role === 'user' ? 
+                          <UserIcon className="w-5 h-5 text-white" /> : 
+                          <SparklesIcon className="w-5 h-5 text-white" />
+                        }
+                      </div>
+                      <div className="text-gray-800">
+                        {message.role === 'assistant' && message.flagReferences ? (
+                          <MessageWithFlagLinks 
+                            content={message.content}
+                            flagReferences={message.flagReferences}
+                            onFlagClick={handleFlagClick}
+                          />
+                        ) : (
+                          <p className="whitespace-pre-wrap text-base">{message.content}</p>
+                        )}
+                        <p className="text-xs mt-1 text-gray-500">
+                          {formatTime(message.timestamp)}
+                        </p>
+                      </div>
                     </div>
+                  )}
+                </motion.div>
+              ))}
+            </AnimatePresence>
+            
+            {isTyping && (
+              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex justify-start">
+                <div className="bg-gray-100 rounded-lg px-4 py-2">
+                  <div className="flex space-x-2">
+                    <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
+                    <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
+                    <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
                   </div>
-                )}
-              </motion.div>
-            ))}
-          </AnimatePresence>
-          
-          {isTyping && (
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex justify-start">
-              <div className="bg-gray-100 rounded-lg px-4 py-2">
-                <div className="flex space-x-2">
-                  <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
-                  <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
-                  <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
                 </div>
-              </div>
-            </motion.div>
-          )}
-          <div ref={messagesEndRef} />
+              </motion.div>
+            )}
+            <div ref={messagesEndRef} />
+          </div>
         </div>
 
-        <div className="border-t p-4 bg-white md:rounded-b-2xl">
-          <div className="mb-2 text-xs text-gray-500 flex justify-between">
-            <span>💡 Tip: {activeAnalysis ? 'Click on flag names to view details' : 'Paste conversations or upload screenshots'}</span>
-            {activeAnalysis && (
+        <div className="border-t p-4 bg-white">
+          <div className="max-w-4xl mx-auto">
+            <div className="mb-2 text-sm text-gray-500 flex justify-between">
+              <span>💡 Tip: {activeAnalysis ? 'Click on flag names to view details' : 'Paste conversations or upload screenshots'}</span>
+              {activeAnalysis && (
+                <button 
+                  onClick={() => {
+                    setActiveAnalysis(null);
+                    toast.success('Analysis context cleared');
+                  }}
+                  className="text-blue-600 hover:text-blue-700 font-medium"
+                >
+                  Clear Context
+                </button>
+              )}
+            </div>
+            <div className="flex items-center space-x-2">
               <button 
-                onClick={() => {
-                  setActiveAnalysis(null);
-                  toast.success('Analysis context cleared');
-                }}
-                className="text-blue-600 hover:text-blue-700 font-medium"
+                onClick={() => fileInputRef.current?.click()} 
+                disabled={isProcessing} 
+                className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors disabled:opacity-50" 
+                title="Upload screenshot"
               >
-                Clear Context
+                <PhotoIcon className="w-6 h-6" />
               </button>
-            )}
-          </div>
-          <div className="flex items-center space-x-2">
-            <button 
-              onClick={() => fileInputRef.current?.click()} 
-              disabled={isProcessing} 
-              className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors disabled:opacity-50" 
-              title="Upload screenshot"
-            >
-              <PhotoIcon className="w-6 h-6" />
-            </button>
-            <input 
-              ref={fileInputRef} 
-              type="file" 
-              accept="image/*" 
-              onChange={handleFileSelect} 
-              className="hidden" 
-            />
-            <textarea
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyPress={(e) => {
-                if (e.key === 'Enter' && !e.shiftKey) {
-                  e.preventDefault();
-                  handleSend();
-                }
-              }}
-              onPaste={handlePaste}
-              placeholder={activeAnalysis ? "Ask about the analysis..." : "Ask a question, paste a conversation..."}
-              className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
-              disabled={isTyping || isProcessing}
-              rows={1}
-            />
-            <button 
-              onClick={handleSend} 
-              disabled={!input.trim() || isTyping || isProcessing} 
-              className="p-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
-            >
-              <PaperAirplaneIcon className="w-5 h-5" />
-            </button>
+              <input 
+                ref={fileInputRef} 
+                type="file" 
+                accept="image/*" 
+                onChange={handleFileSelect} 
+                className="hidden" 
+              />
+              <textarea
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyPress={(e) => {
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    handleSend();
+                  }
+                }}
+                onPaste={handlePaste}
+                placeholder={activeAnalysis ? "Ask about the analysis..." : "Ask a question, paste a conversation..."}
+                className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none text-base"
+                disabled={isTyping || isProcessing}
+                rows={1}
+              />
+              <button 
+                onClick={handleSend} 
+                disabled={!input.trim() || isTyping || isProcessing} 
+                className="p-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
+              >
+                <PaperAirplaneIcon className="w-5 h-5" />
+              </button>
+            </div>
           </div>
         </div>
       </div>

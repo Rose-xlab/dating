@@ -6,7 +6,6 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { PlusIcon, TrashIcon, ChatBubbleLeftRightIcon, UserIcon } from '@heroicons/react/24/outline';
 import toast from 'react-hot-toast';
-import SignOutButton from './SignOutButton';
 import { User } from '@supabase/supabase-js';
 
 interface ChatSession {
@@ -129,12 +128,10 @@ export default function ChatHistorySidebar() {
       </div>
       {user && (
         <div className="p-4 border-t border-gray-200">
-          <div className="flex items-center space-x-2">
-            <Link href="/dashboard/profile" className="flex-1 flex items-center space-x-2 text-sm text-gray-600 hover:text-blue-600 p-2 rounded-md hover:bg-gray-200">
+          <div className="flex items-center">
+            <Link href="/dashboard/profile" className="p-2 rounded-md text-gray-600 hover:text-blue-600 hover:bg-gray-200">
               <UserIcon className="w-5 h-5" />
-              <span className="truncate">{user.email}</span>
             </Link>
-            <SignOutButton />
           </div>
         </div>
       )}
