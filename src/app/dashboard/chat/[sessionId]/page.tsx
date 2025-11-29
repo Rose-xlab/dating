@@ -1,9 +1,9 @@
-//src\app\dashboard\chat\[sessionId]\page.tsx
-
-import { createClient } from '../../../../lib/supabase/server';
-import { notFound } from 'next/navigation';
-import DashboardClientPage from './client-page';
-import { AnalysisResult } from '../../../../types';
+import { lucia } from "@/lib/auth";
+import { cookies } from "next/headers";
+import { redirect, notFound } from "next/navigation";
+import { createClient } from "@/lib/supabase/server"; // Adjust path if needed
+import DashboardClientPage from "./client-page";
+import { AnalysisResult } from "@/types"; // Adjust path if needed
 
 // Define the Message type to match the client-side type
 interface Message {
@@ -13,33 +13,34 @@ interface Message {
   timestamp: Date;
   type?: 'text' | 'analysis';
   analysisResult?: AnalysisResult;
-  analysisResultId?: string; // This property is in the saved data
+  analysisResultId?: string;
   flagReferences?: any[];
 }
 
-// This Server Component is responsible for fetching all necessary data for a chat session.
 export default async function ChatSessionPage({ params }: { params: { sessionId: string } }) {
   const supabase = createClient();
   const { sessionId } = params;
 
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) {
-    notFound();
-  }
+  // 1. AUTH CHECK (The Lucia Way)
+  const sessionCookie = cookies().get(lucia.sessionCookieName)?.value ?? null;
+  if (!sessionCookie) redirect("/login");
+  const { user } = await lucia.validateSession(sessionCookie);
+  if (!user) redirect("/login");
 
-  // Fetch the session to get its list of analysis IDs
+  // 2. FETCH SESSION
   const { data: session, error: sessionError } = await supabase
     .from('chat_sessions')
     .select('id, analysis_ids')
     .eq('id', sessionId)
-    .eq('user_id', user.id)
+    .eq('user_id', user.id) // Validates user ownership
     .single();
 
   if (sessionError || !session) {
+    console.error("Session not found or error:", sessionError);
     notFound();
   }
 
-  // Fetch the raw chat messages for this session
+  // 3. FETCH MESSAGES
   const { data: history } = await supabase
     .from('chat_history')
     .select('messages')
@@ -48,17 +49,16 @@ export default async function ChatSessionPage({ params }: { params: { sessionId:
     
   let analysisResultsMap = new Map<string, AnalysisResult>();
 
-  // If there are analysis IDs, fetch ALL associated analysis results
+  // 4. FETCH ANALYSIS RESULTS (If any)
   if (session.analysis_ids && session.analysis_ids.length > 0) {
     const { data: analyses } = await supabase
       .from('analysis_results')
       .select('*')
       .in('id', session.analysis_ids);
     
-    // Store the results in a Map for quick lookups
     if (analyses) {
       for (const analysis of analyses) {
-        // Manually map snake_case from DB to camelCase for the component
+        // Map snake_case DB fields to camelCase TS interface
         const formattedAnalysis: AnalysisResult = {
           id: analysis.id,
           createdAt: analysis.created_at,
@@ -79,25 +79,25 @@ export default async function ChatSessionPage({ params }: { params: { sessionId:
     }
   }
 
-  // Now, build the complete initialMessages array
+  // 5. FORMAT MESSAGES
   const initialMessages: Message[] = history?.messages 
     ? (history.messages as any[]).map((msg): Message => {
         const message: Message = {
           ...msg,
+          // Handle timestamp conversion safely
           timestamp: new Date(msg.timestamp),
         };
 
-        // If the message is an analysis card, find and attach the full analysis object
+        // Re-attach full analysis object if it exists
         if (message.type === 'analysis' && message.analysisResultId) {
           const fullAnalysis = analysisResultsMap.get(message.analysisResultId);
           if (fullAnalysis) {
             message.analysisResult = fullAnalysis;
           }
         }
-        
         return message;
       }) 
-    : [{ // Default message for a new chat
+    : [{ // Default welcome message
         id: '1',
         role: 'assistant',
         content: "Hi! I'm your Dating Safety AI. Type a question or upload a screenshot to get started.",
@@ -105,13 +105,11 @@ export default async function ChatSessionPage({ params }: { params: { sessionId:
         type: 'text'
       }];
 
-  // Pass the fully constructed data to the client component.
-  // Note: We no longer need to pass initialAnalysisResult separately.
+  // 6. RENDER CLIENT PAGE
   return (
     <DashboardClientPage 
         sessionId={sessionId} 
         initialMessages={initialMessages}
-        initialAnalysisResult={null} // This is now handled by initialMessages
     />
   );
 }
