@@ -1,3 +1,5 @@
+//src\app\login\page.tsx
+
 'use client';
 import { createClient } from '@/lib/supabase/client';
 import Link from 'next/link';
