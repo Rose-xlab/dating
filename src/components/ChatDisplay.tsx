@@ -26,7 +26,7 @@ export default function ChatDisplay({ messages, flags, evidence }: ChatDisplayPr
     if (evidenceList.length === 0) return content;
 
     // Sort evidence by start index in descending order to avoid index shifting
-    const sortedEvidence = [...evidenceList].sort((a, b) => b.startIndex - a.startIndex);
+    const sortedEvidence = [...evidenceList].sort((a, b) => (b.startIndex ?? 0) - (a.startIndex ?? 0));
     
     let result = content;
     sortedEvidence.forEach((ev) => {
@@ -157,7 +157,7 @@ export default function ChatDisplay({ messages, flags, evidence }: ChatDisplayPr
                       <p className={`text-sm italic ${
                         flag.type === 'red' ? 'text-red-700' : 'text-green-700'
                       }`}>
-                        "{flag.evidence}"
+                        &quot;{flag.evidence}&quot;
                       </p>
                     </div>
                     

@@ -159,16 +159,16 @@ export default function ReciprocityChart({ reciprocity }: ReciprocityChartProps)
         <h4 className="font-medium text-gray-900 mb-2">Balance Insights</h4>
         <ul className="text-sm text-gray-700 space-y-1 list-disc list-inside">
           {reciprocity.questionsAskedByUser > reciprocity.questionsAskedByMatch * 2 && (
-            <li>You're asking significantly more questions, which might indicate they are less engaged.</li>
+            <li>You are asking significantly more questions, which might indicate they are less engaged.</li>
           )}
           {reciprocity.questionsAskedByMatch > reciprocity.questionsAskedByUser * 2 && (
-            <li>They're asking many questions, which is a positive sign of interest!</li>
+            <li>They are asking many questions, which is a positive sign of interest!</li>
           )}
           {reciprocity.averageMessageLengthUser > reciprocity.averageMessageLengthMatch * 1.5 && (
             <li>Your messages are much longer. Consider matching their communication style for better rapport.</li>
           )}
           {reciprocity.averageMessageLengthMatch > reciprocity.averageMessageLengthUser * 1.5 && (
-            <li>They're writing longer messages, suggesting they are invested in the conversation.</li>
+            <li>They are writing longer messages, suggesting they are invested in the conversation.</li>
           )}
           {reciprocity.balanceScore >= 80 && (
             <li>Great balance! The conversation flows naturally with equal effort from both sides.</li>

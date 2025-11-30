@@ -1,4 +1,7 @@
 // src/components/EmergencyAlert.tsx
+import { ExclamationTriangleIcon } from '@heroicons/react/24/outline';
+import { AnalysisResult } from '@/types';
+
 export default function EmergencyAlert({ analysisResult }: { analysisResult: AnalysisResult }) {
   if (analysisResult.riskScore < 90) return null;
   

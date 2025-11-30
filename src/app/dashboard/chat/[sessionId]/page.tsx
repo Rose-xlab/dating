@@ -111,7 +111,6 @@ export default async function ChatSessionPage({ params }: { params: { sessionId:
     <DashboardClientPage 
         sessionId={sessionId} 
         initialMessages={initialMessages}
-        initialAnalysisResult={null} // This is now handled by initialMessages
     />
   );
 }

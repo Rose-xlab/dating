@@ -5,12 +5,11 @@ export async function GET() {
   try {
     // Test Supabase connection
     const { error: supabaseError } = await supabase
-      .from('users')
-      .select('count')
-      .single();
+      .from('profiles')
+      .select('id', { count: 'exact', head: true });
 
     const supabaseStatus = supabaseError 
-      ? (supabaseError.code === 'PGRST116' ? 'connected (no data)' : 'error')
+      ? 'error'
       : 'connected';
 
     return NextResponse.json({
@@ -25,7 +24,7 @@ export async function GET() {
   } catch (error) {
     return NextResponse.json({
       status: 'error',
-      message: error.message,
+      message: error instanceof Error ? error.message : 'An unknown error occurred',
       timestamp: new Date().toISOString()
     }, { status: 500 });
   }

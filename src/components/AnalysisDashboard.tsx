@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { AnalysisResult, Flag, FlagCategory } from '@/types';
 import type { User } from '@supabase/supabase-js';
 import { 
@@ -30,9 +30,20 @@ interface AnalysisDashboardProps {
   focusedFlagId: string | null;
 }
 
-export default function AnalysisDashboard({ user, result, onClose }: AnalysisDashboardProps) {
+export default function AnalysisDashboard(props: AnalysisDashboardProps) {
+  const { user, result, onClose, focusedFlagId } = props;
   const [activeTab, setActiveTab] = useState<'overview' | 'details' | 'advice'>('overview');
-  const [expandedFlags, setExpandedFlags] = useState<Set<string>>(new Set());
+  const [expandedFlags, setExpandedFlags] = useState<Set<string>>(() => {
+    // Automatically expand the focused flag if one is provided
+    return focusedFlagId ? new Set([focusedFlagId]) : new Set();
+  });
+
+  useEffect(() => {
+    // If a focusedFlagId is provided, switch to the details tab
+    if (focusedFlagId) {
+      setActiveTab('details');
+    }
+  }, [focusedFlagId]);
 
   // Categorize and sort flags
   const { redFlags, greenFlags, criticalFlags } = useMemo(() => {
@@ -400,7 +411,7 @@ export default function AnalysisDashboard({ user, result, onClose }: AnalysisDas
                                             <p className="text-xs font-medium text-gray-500 mb-1">
                                               From: {associatedMessage.sender === 'match' ? 'Match' : 'You'}
                                             </p>
-                                            <p className="text-sm text-gray-800 italic">"{associatedMessage.content}"</p>
+                                            <p className="text-sm text-gray-800 italic">&quot;{associatedMessage.content}&quot;</p>
                                           </div>
                                         </div>
                                       )}
@@ -458,7 +469,7 @@ export default function AnalysisDashboard({ user, result, onClose }: AnalysisDas
                                           </h4>
                                           <div className="bg-white rounded-md p-3 border">
                                             <p className="text-sm italic text-gray-700 mb-2">
-                                              "{flag.aiSuggestedReply.content}"
+                                              &quot;{flag.aiSuggestedReply.content}&quot;
                                             </p>
                                             <div className="flex items-center justify-between">
                                               <div className="flex items-center space-x-4 text-xs">
@@ -612,9 +623,9 @@ export default function AnalysisDashboard({ user, result, onClose }: AnalysisDas
                         <h4 className="font-medium text-purple-900 mb-2">Red Lines Never to Cross</h4>
                         <ul className="text-sm text-purple-800 space-y-1">
                           <li>• Never send money or financial info</li>
-                          <li>• Don't share intimate photos early</li>
+                          <li>• Don&apos;t share intimate photos early</li>
                           <li>• Avoid giving your home address initially</li>
-                          <li>• Don't ignore your gut feelings</li>
+                          <li>• Don&apos;t ignore your gut feelings</li>
                         </ul>
                       </div>
                     </div>

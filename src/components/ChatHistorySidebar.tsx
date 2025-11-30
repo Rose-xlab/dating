@@ -57,11 +57,11 @@ export default function ChatHistorySidebar() {
     const originalSessions = sessions;
     setSessions(sessions.filter(s => s.id !== sessionId)); // Optimistic update
 
-    const { error } = await fetch(`/api/chat/sessions/${sessionId}`, {
+    const response = await fetch(`/api/chat/sessions/${sessionId}`, {
       method: 'DELETE',
     });
 
-    if (error) {
+    if (!response.ok) {
       toast.error('Failed to delete session.');
       setSessions(originalSessions); // Revert on error
     } else {

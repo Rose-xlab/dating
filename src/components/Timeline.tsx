@@ -19,6 +19,11 @@ export default function Timeline({ events, messages }: TimelineProps) {
       pressuring: 'bg-red-400',
       supportive: 'bg-green-400',
       defensive: 'bg-yellow-400',
+      aggressive: 'bg-red-600',
+      manipulative: 'bg-purple-500',
+      anxious: 'bg-yellow-500',
+      confident: 'bg-blue-500',
+      vulnerable: 'bg-pink-300',
     };
     return colors[tone] || 'bg-gray-400';
   };
@@ -72,7 +77,7 @@ export default function Timeline({ events, messages }: TimelineProps) {
                     </span>
                   </div>
                   
-                  {event.type === 'emotional_shift' && (
+                  {event.type === 'emotional_shift' && event.from && event.to && (
                     <div className="flex items-center space-x-2 mb-2">
                       <span className={`px-2 py-1 rounded text-xs text-white ${getToneColor(event.from)}`}>
                         {getToneLabel(event.from)}

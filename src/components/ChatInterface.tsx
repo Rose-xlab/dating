@@ -18,7 +18,7 @@ const SenderSelectionModal = ({ senders, onSelect, onClose }: { senders: string[
             className="bg-white rounded-2xl p-6 shadow-xl max-w-sm w-full border border-gray-200"
         >
             <h3 className="text-xl font-bold text-gray-900 mb-2">Who are you in this chat?</h3>
-            <p className="text-sm text-gray-600 mb-6">Select your name so I can accurately analyze the other person's behavior.</p>
+            <p className="text-sm text-gray-600 mb-6">Select your name so I can accurately analyze the other persons behavior.</p>
             <div className="space-y-3">
                 {senders.map(sender => (
                     <button
@@ -175,7 +175,7 @@ function AnalysisSummaryCard({ result, onViewFull }: { result: AnalysisResult; o
       
       <div className="mt-3 pt-3 border-t border-gray-200">
         <p className="text-xs text-gray-500">
-          💡 Ask me about specific flags - I'll show clickable links to view them in detail
+          💡 Ask me about specific flags - I will show clickable links to view them in detail
         </p>
       </div>
     </div>

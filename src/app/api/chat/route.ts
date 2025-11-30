@@ -92,7 +92,7 @@ Be specific and reference the actual findings from the analysis, not generic exa
 
     // 5. Save Updated History to Supabase (only text messages, not analysis context)
     if (!hasAnalysisContext) {
-      const updatedHistory = [...pastMessages, ...newMessages.filter(m => m.role !== 'system'), assistantResponse];
+      const updatedHistory = [...pastMessages, ...newMessages.filter((m: { role: string; }) => m.role !== 'system'), assistantResponse];
       await supabase
         .from('chat_history')
         .upsert({

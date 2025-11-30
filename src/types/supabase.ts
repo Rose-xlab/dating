@@ -199,25 +199,31 @@ export type Database = {
           analysis_count: number
           created_at: string | null
           email: string | null
+          full_name: string | null
           id: string
           subscription: string
           updated_at: string | null
+          username: string | null
         }
         Insert: {
           analysis_count?: number
           created_at?: string | null
           email?: string | null
+          full_name?: string | null
           id: string
           subscription?: string
           updated_at?: string | null
+          username?: string | null
         }
         Update: {
           analysis_count?: number
           created_at?: string | null
           email?: string | null
+          full_name?: string | null
           id?: string
           subscription?: string
           updated_at?: string | null
+          username?: string | null
         }
         Relationships: []
       }

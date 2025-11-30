@@ -36,6 +36,7 @@ export default function AnalysisDetailClient({ analysis }: AnalysisDetailClientP
       result={analysis}
       user={user}
       onClose={() => router.push('/dashboard/history')}
+      focusedFlagId={null}
     />
   );
 }

@@ -40,7 +40,7 @@ export default function SenderSelectionModal({
         </div>
         
         <p className="text-sm text-gray-600 mb-6">
-          We detected a WhatsApp conversation between multiple people. Please select which person you are so we can analyze the other person's behavior correctly.
+          We detected a WhatsApp conversation between multiple people. Please select which person you are so we can analyze the other person&apos;s behavior correctly.
         </p>
         
         <div className="space-y-2">
@@ -69,7 +69,7 @@ export default function SenderSelectionModal({
         
         <div className="mt-6 p-3 bg-yellow-50 rounded-lg border border-yellow-200">
           <p className="text-xs text-yellow-800">
-            <strong>Why we ask:</strong> We need to know who you are to properly analyze the other person's behavior and identify any concerning patterns.
+            <strong>Why we ask:</strong> We need to know who you are to properly analyze the other person&apos;s behavior and identify any concerning patterns.
           </p>
         </div>
       </motion.div>
