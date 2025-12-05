@@ -62,11 +62,13 @@ const faqs = [
 
 const AppLogos = () => (
     <div className="mt-12 flex justify-center items-center gap-x-8 sm:gap-x-12 grayscale opacity-60">
-        <img className="h-8 sm:h-10" src="https://upload.wikimedia.org/wikipedia/commons/thumb/7/74/Tinder_logo_2017.svg/1024px-Tinder_logo_2017.svg.png" alt="Tinder" />
-        <img className="h-8 sm:h-10" src="https://upload.wikimedia.org/wikipedia/en/thumb/5/58/Bumble_logo_2023.svg/1200px-Bumble_logo_2023.svg.png" alt="Bumble" />
-        <img className="h-7 sm:h-9" src="https://upload.wikimedia.org/wikipedia/commons/thumb/2/22/Hinge_logo.svg/1200px-Hinge_logo.svg.png" alt="Hinge" />
+<img className="h-8 sm:h-10" src="/images/apps/tinder.png" alt="Tinder" />        
+<img className="h-8 sm:h-10" src="/images/apps/Bumble.png" alt="Bumble" />        
+        {/* Updated Hinge Logo Path */}
+        <img className="h-7 sm:h-9" src="/images/apps/hinge.png" alt="Hinge" />
+        
         <img className="h-8 sm:h-10" src="https://upload.wikimedia.org/wikipedia/commons/thumb/6/6b/WhatsApp.svg/1024px-WhatsApp.svg.png" alt="WhatsApp" />
-        <img className="h-8 sm:h-10" src="https://upload.wikimedia.org/wikipedia/commons/thumb/5/56/IMessage_logo_2020.svg/1024px-IMessage_logo_2020.svg.png" alt="iMessage" />
+        <img className="h-7 sm:h-9" src="/images/apps/imessage.png" alt="Imessage" />
     </div>
 )
 
@@ -137,6 +139,9 @@ export default function HomePage() {
                         <p className="mt-6 text-lg leading-8 text-gray-600">
                             Our AI analyzes your dating conversations for red flags and positive signs, giving you the clarity you need to connect safely.
                         </p>
+                        <p className="mt-6 text-lg leading-8 text-gray-600">
+                            Proven by dating experts
+                        </p>
                         <div className="mt-10 flex items-center justify-center gap-x-6">
                             <a
                                 href="/dashboard/chat/new"
@@ -157,7 +162,7 @@ export default function HomePage() {
         <section id="how-it-works" className="bg-gray-50 py-24 sm:py-32">
             <div className="mx-auto max-w-7xl px-6 lg:px-8">
                 <div className="mx-auto max-w-2xl lg:text-center">
-                       <h2 className="text-base font-semibold leading-7 text-blue-600">Simple & Secure</h2>
+                      <h2 className="text-base font-semibold leading-7 text-blue-600">Simple & Secure</h2>
                     <p className="mt-2 text-3xl font-bold tracking-tight text-gray-900 sm:text-4xl">Get Clarity in 3 Easy Steps</p>
                 </div>
                 <div className="mx-auto mt-20 max-w-lg space-y-12 lg:max-w-none">
@@ -234,4 +239,3 @@ export default function HomePage() {
     </div>
   );
 }
-
