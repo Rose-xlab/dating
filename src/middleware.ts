@@ -42,7 +42,14 @@ export async function middleware(request: NextRequest) {
 
   // If the user is not logged in and tries to access the dashboard, redirect them to the login page
   if (!user && request.nextUrl.pathname.startsWith('/dashboard')) {
-    return NextResponse.redirect(new URL('/login', request.url))
+    const loginUrl = new URL('/login', process.env.NEXT_PUBLIC_SITE_URL);
+    return NextResponse.redirect(loginUrl);
+  }
+
+  // If the user is logged in and tries to access login or signup, redirect them to the dashboard
+  if (user && (request.nextUrl.pathname.startsWith('/login') || request.nextUrl.pathname.startsWith('/signup'))) {
+    const dashboardUrl = new URL('/dashboard', process.env.NEXT_PUBLIC_SITE_URL);
+    return NextResponse.redirect(dashboardUrl);
   }
 
   return response
