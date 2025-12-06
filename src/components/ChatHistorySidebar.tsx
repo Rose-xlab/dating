@@ -6,7 +6,6 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { PlusIcon, TrashIcon, ChatBubbleLeftRightIcon, UserIcon } from '@heroicons/react/24/outline';
 import toast from 'react-hot-toast';
-import SignOutButton from './SignOutButton';
 import { User } from '@supabase/supabase-js';
 
 interface ChatSession {
@@ -22,6 +21,17 @@ export default function ChatHistorySidebar() {
   const supabase = createClient();
   const pathname = usePathname();
   const router = useRouter();
+
+  const getEmailInitials = (email: string | undefined) => {
+    if (!email) return '..';
+    const parts = email.split('@');
+    if (parts.length < 2) return email.slice(0, 2).toUpperCase();
+    const namePart = parts[0];
+    const domainPart = parts[1];
+    const firstInitial = namePart[0] || '';
+    const secondInitial = domainPart[0] || '';
+    return `${firstInitial}${secondInitial}`.toUpperCase();
+  };
 
   useEffect(() => {
     const fetchSessions = async () => {
@@ -132,9 +142,8 @@ export default function ChatHistorySidebar() {
           <div className="flex items-center space-x-2">
             <Link href="/dashboard/profile" className="flex-1 flex items-center space-x-2 text-sm text-gray-600 hover:text-blue-600 p-2 rounded-md hover:bg-gray-200">
               <UserIcon className="w-5 h-5" />
-              <span className="truncate">{user.email}</span>
+              <span className="truncate">{getEmailInitials(user.email)}</span>
             </Link>
-            <SignOutButton />
           </div>
         </div>
       )}

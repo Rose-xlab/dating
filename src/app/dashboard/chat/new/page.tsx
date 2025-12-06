@@ -15,7 +15,7 @@ export default async function NewChatPage() {
   // Create a new chat session
   const { data, error } = await supabase
     .from('chat_sessions')
-    .insert({ user_id: user.id, title: 'New Conversation' })
+    .insert({ user_id: user.id, title: 'New Chat' })
     .select('id')
     .single();
 
