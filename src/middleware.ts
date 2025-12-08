@@ -1,5 +1,6 @@
 import { createServerClient, type CookieOptions } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
+import { rateLimiter } from '@/lib/rate-limit'
 
 export async function middleware(request: NextRequest) {
   let response = NextResponse.next({
@@ -40,15 +41,24 @@ export async function middleware(request: NextRequest) {
 
   const { data: { user } } = await supabase.auth.getUser()
 
-  // If the user is not logged in and tries to access the dashboard, redirect them to the login page
+  // Apply Global Rate Limiting to API routes
+  if (request.nextUrl.pathname.startsWith('/api/')) {
+    // We pass the user ID if available to give them the higher "Authenticated" limit
+    const rateLimitResponse = await rateLimiter(request, user?.id);
+    if (rateLimitResponse) {
+      return rateLimitResponse;
+    }
+  }
+
+  // Auth Redirect Logic
   if (!user && request.nextUrl.pathname.startsWith('/dashboard')) {
-    const loginUrl = new URL('/login', process.env.NEXT_PUBLIC_SITE_URL);
+    const loginUrl = new URL('/login', request.url);
+    loginUrl.searchParams.set('next', request.nextUrl.pathname);
     return NextResponse.redirect(loginUrl);
   }
 
-  // If the user is logged in and tries to access login or signup, redirect them to the dashboard
   if (user && (request.nextUrl.pathname.startsWith('/login') || request.nextUrl.pathname.startsWith('/signup'))) {
-    const dashboardUrl = new URL('/dashboard', process.env.NEXT_PUBLIC_SITE_URL);
+    const dashboardUrl = new URL('/dashboard', request.url);
     return NextResponse.redirect(dashboardUrl);
   }
 
@@ -57,13 +67,6 @@ export async function middleware(request: NextRequest) {
 
 export const config = {
   matcher: [
-    /*
-     * Match all request paths except for the ones starting with:
-     * - _next/static (static files)
-     * - _next/image (image optimization files)
-     * - favicon.ico (favicon file)
-     * Feel free to modify this pattern to include more paths.
-     */
-    '/((?!_next/static|_next/image|favicon.ico).*)',
+    '/((?!_next/static|_next/image|favicon.ico|api/auth).*)',
   ],
 }

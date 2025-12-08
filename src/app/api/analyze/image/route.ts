@@ -1,10 +1,9 @@
-// src/app/api/analyze/image/route.ts
-
 import { NextRequest, NextResponse } from 'next/server';
 import { analyzeConversationWithContext } from '@/lib/analyze-enhanced';
 import { createClient } from '@/lib/supabase/server';
 import { Json } from '@/types/supabase';
 import { ChatMessage } from '@/types';
+import { analysisRatelimit } from '@/lib/rate-limit'; // IMPORT SPECIFIC LIMITER
 
 export async function POST(request: NextRequest) {
   const supabase = createClient();
@@ -14,6 +13,13 @@ export async function POST(request: NextRequest) {
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
+
+    // --- RATE LIMIT CHECK ---
+    const { success } = await analysisRatelimit.limit(user.id);
+    if (!success) {
+       return NextResponse.json({ error: 'Analysis limit reached. Please wait a minute.' }, { status: 429 });
+    }
+    // ------------------------
 
     const { messages } = await request.json();
 
@@ -28,10 +34,7 @@ export async function POST(request: NextRequest) {
       timestamp: msg.timestamp ? new Date(msg.timestamp) : new Date(),
     }));
 
-    // --- THIS IS THE FIX ---
-    // Pass only the messages array as the first argument
     const analysisResult = await analyzeConversationWithContext(formattedMessages);
-    // -----------------------
     
     const { error: saveError } = await supabase
       .from('analysis_results')

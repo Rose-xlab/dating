@@ -26,7 +26,6 @@ export default function LoginPage() {
     } else {
       // Redirect to the dashboard after successful sign-in
       router.push('/dashboard');
-      router.refresh();
     }
   };
 

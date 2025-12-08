@@ -1,14 +1,105 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { PaperAirplaneIcon, PhotoIcon, UserIcon, SparklesIcon, ChartBarIcon, ShieldCheckIcon, ArrowRightIcon, ExclamationTriangleIcon, CheckCircleIcon } from '@heroicons/react/24/outline';
+import { 
+  PaperAirplaneIcon, 
+  PhotoIcon, 
+  UserIcon, 
+  SparklesIcon, 
+  ChartBarIcon, 
+  ShieldCheckIcon, 
+  ArrowRightIcon, 
+  ExclamationTriangleIcon, 
+  CheckCircleIcon 
+} from '@heroicons/react/24/outline';
 import { motion, AnimatePresence } from 'framer-motion';
 import toast from 'react-hot-toast';
 import { createClient } from '@/lib/supabase/client';
 import { detectWhatsAppFormat } from '@/lib/parsers/whatsapp-parser';
 import { AnalysisResult } from '@/types';
 
-// --- SenderSelectionModal (Original, Unchanged) ---
+// --- NEW: Scanning Animation Component ---
+const ScanningAnalysisLoader = () => {
+  const [loadingText, setLoadingText] = useState('Initializing scanner...');
+  
+  // Cycle through realistic analysis steps
+  useEffect(() => {
+    const steps = [
+      "Scanning image for text...",
+      "Extracting conversation context...",
+      "Identifying sender patterns...",
+      "Analyzing psychological markers...",
+      "Cross-referencing red flags...",
+      "Generating safety report..."
+    ];
+    
+    let index = 0;
+    setLoadingText(steps[0]);
+
+    const interval = setInterval(() => {
+      index = (index + 1) % steps.length;
+      setLoadingText(steps[index]);
+    }, 2500); 
+
+    return () => clearInterval(interval);
+  }, []);
+
+  return (
+    <motion.div 
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, scale: 0.95 }}
+      className="flex flex-col items-center justify-center p-6 bg-white border border-blue-100 rounded-xl shadow-sm max-w-sm mx-auto my-4"
+    >
+      {/* Visual Scanner Animation */}
+      <div className="relative w-16 h-16 mb-4">
+        {/* Background Icon */}
+        <div className="absolute inset-0 flex items-center justify-center bg-blue-50 rounded-lg">
+          <PhotoIcon className="w-8 h-8 text-blue-300" />
+        </div>
+        
+        {/* Scanning Beam */}
+        <motion.div 
+          animate={{ top: ["0%", "100%", "0%"] }}
+          transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
+          className="absolute left-0 right-0 h-1 bg-gradient-to-r from-transparent via-blue-500 to-transparent shadow-[0_0_10px_rgba(59,130,246,0.5)]"
+          style={{ width: '100%' }}
+        />
+        
+        {/* Outer Pulse Ring */}
+        <motion.div
+          animate={{ scale: [1, 1.2, 1], opacity: [0.5, 0, 0.5] }}
+          transition={{ duration: 2, repeat: Infinity }}
+          className="absolute inset-0 border-2 border-blue-400 rounded-lg"
+        />
+      </div>
+
+      {/* Dynamic Text */}
+      <div className="flex flex-col items-center space-y-2">
+        <h4 className="font-semibold text-gray-800 text-sm">AI Analysis in Progress</h4>
+        <motion.p 
+          key={loadingText}
+          initial={{ opacity: 0, y: 5 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="text-xs text-blue-600 font-medium"
+        >
+          {loadingText}
+        </motion.p>
+      </div>
+
+      {/* Progress Bar */}
+      <div className="w-full bg-gray-100 h-1 mt-4 rounded-full overflow-hidden">
+        <motion.div 
+          className="h-full bg-blue-500"
+          animate={{ width: ["0%", "100%"] }}
+          transition={{ duration: 15, ease: "linear" }} 
+        />
+      </div>
+    </motion.div>
+  );
+};
+
+// --- SenderSelectionModal ---
 const SenderSelectionModal = ({ senders, onSelect, onClose }: { senders: string[], onSelect: (sender: string) => void, onClose: () => void }) => (
     <div className="fixed inset-0 bg-black bg-opacity-60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
         <motion.div 
@@ -40,7 +131,7 @@ const SenderSelectionModal = ({ senders, onSelect, onClose }: { senders: string[
     </div>
 );
 
-// --- Type Definitions and Helper Functions (Original, Unchanged) ---
+// --- Type Definitions and Helper Functions ---
 interface Message {
   id: string;
   role: 'user' | 'assistant' | 'system';
@@ -182,7 +273,6 @@ function AnalysisSummaryCard({ result, onViewFull }: { result: AnalysisResult; o
   );
 }
 
-// *** CORE FIX IS HERE: PROPS ARE MODIFIED ***
 interface ChatInterfaceProps {
   sessionId: string;
   messages: Message[];
@@ -206,9 +296,7 @@ export default function ChatInterface({
   activeAnalysis,
   setActiveAnalysis
 }: ChatInterfaceProps) {
-  // *** CORE FIX: INTERNAL STATE REMOVED ***
-  // This component is now "controlled" by its parent, `client-page.tsx`.
-  // It no longer has its own `messages` or `currentAnalysisResult` state.
+  
   const [input, setInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const [showSenderModal, setShowSenderModal] = useState(false);
@@ -219,14 +307,9 @@ export default function ChatInterface({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const supabase = createClient();
   
-  // This useEffect for scrolling is correct and remains.
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
-  
-  // *** CORE FIX: REMOVED CONFLICTING USEEFFECT HOOKS ***
-  // The original `useEffect` hooks that reset `messages` and `currentAnalysisResult`
-  // have been removed, as this state is now controlled by the parent.
+  }, [messages, isProcessing]); // Scroll when messages OR processing state changes
 
   const handleFlagClick = (flagId: string) => {
     if (activeAnalysis) {
@@ -235,7 +318,6 @@ export default function ChatInterface({
   };
 
   const handleWhatsAppAnalysis = async (text: string) => {
-    // This now just calls the parent function
     await onAnalyzeText(text);
   };
   
@@ -264,7 +346,7 @@ export default function ChatInterface({
       content: `Got it! I'll analyze the conversation with you as "${selectedSender}" and examine the other person's behavior.`,
       timestamp: new Date(), type: 'text'
     }]);
-    await handleWhatsAppAnalysis(pendingText); // This can be enhanced to pass the sender info
+    await handleWhatsAppAnalysis(pendingText);
   };
 
   const handleSend = async () => {
@@ -377,9 +459,9 @@ export default function ChatInterface({
             <div className="flex items-center space-x-3">
               <SparklesIcon className="w-8 h-8" />
               <div>
-                <h3 className="text-lg font-semibold">Swipe Safe AI Assistant</h3>
+                <h3 className="text-lg font-semibold">Swipe-Safe AI</h3>
                 <p className="text-sm opacity-90">
-                  {activeAnalysis ? 'Analysis loaded - Ask me anything!' : 'WhatsApp & Dating App Analysis'}
+                  {activeAnalysis ? 'Analysis loaded - Ask me anything!' : 'Dating Safety Analysis'}
                 </p>
               </div>
             </div>
@@ -391,9 +473,9 @@ export default function ChatInterface({
                 </div>
               )}
               {isProcessing && (
-                <div className="flex items-center space-x-2 text-sm bg-white/20 px-3 py-1 rounded-full">
-                  <div className="animate-spin h-3 w-3 border-2 border-white border-t-transparent rounded-full"></div>
-                  <span>Analyzing...</span>
+                <div className="flex items-center space-x-2 text-sm bg-white/20 px-3 py-1 rounded-full animate-pulse">
+                   <SparklesIcon className="w-4 h-4" />
+                   <span>AI Working</span>
                 </div>
               )}
             </div>
@@ -453,7 +535,12 @@ export default function ChatInterface({
             ))}
           </AnimatePresence>
           
-          {isTyping && (
+          {/* --- NEW: High-Tech Scanning Loader --- */}
+          {isProcessing && (
+             <ScanningAnalysisLoader />
+          )}
+
+          {isTyping && !isProcessing && (
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex justify-start">
               <div className="bg-gray-100 rounded-lg px-4 py-2">
                 <div className="flex space-x-2">

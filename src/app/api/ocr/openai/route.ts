@@ -1,12 +1,10 @@
-// src/app/api/ocr/openai/route.ts
-
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { analyzeConversationWithContext } from '@/lib/analyze-enhanced';
 import OpenAI from 'openai';
 import { ChatMessage } from '@/types';
 import { Json } from '@/types/supabase';
-import type { User } from '@supabase/supabase-js';
+import { ocrRatelimit } from '@/lib/rate-limit'; // Keep our rate limiter!
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -24,6 +22,22 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
+    // --- RATE LIMIT CHECK (Preserved) ---
+    const { success, limit, remaining, reset } = await ocrRatelimit.limit(user.id);
+    if (!success) {
+      return NextResponse.json({ 
+        error: 'You are processing images too quickly. Please wait a moment.' 
+      }, { 
+        status: 429,
+        headers: {
+          'X-RateLimit-Limit': limit.toString(),
+          'X-RateLimit-Remaining': remaining.toString(),
+          'X-RateLimit-Reset': reset.toString()
+        }
+      });
+    }
+    // ------------------------------------
+
     const formData = await request.formData();
     const file = formData.get('image') as File | null;
     if (!file) {
@@ -33,7 +47,7 @@ export async function POST(request: NextRequest) {
     const buffer = Buffer.from(await file.arrayBuffer());
     const base64Image = buffer.toString('base64');
     
-    // Enhanced OCR prompt for better conversation extraction
+    // Original Prompt
     const ocrPrompt = `You are an expert at extracting dating app conversations from screenshots with perfect accuracy.
 
 CRITICAL INSTRUCTIONS:
@@ -74,53 +88,58 @@ Extract EVERYTHING - even profile names, ages, or bio snippets if visible. We ne
     
     const ocrResponse = await openai.chat.completions.create({
       model: 'gpt-4o',
-      messages: [{ 
-        role: 'user', 
-        content: [
-          { type: 'text', text: ocrPrompt },
-          { 
-            type: 'image_url', 
-            image_url: { 
-              url: `data:${file.type};base64,${base64Image}` 
-            } 
-          }
-        ] 
-      }],
+      messages: [
+        // --- FIX IS HERE: Explicit System Message containing "JSON" ---
+        {
+           role: 'system', 
+           content: 'You are a helpful assistant designed to output valid JSON. You extract text from images.' 
+        },
+        // ---------------------------------------------------------------
+        { 
+          role: 'user', 
+          content: [
+            { type: 'text', text: ocrPrompt },
+            { 
+              type: 'image_url', 
+              image_url: { 
+                url: `data:${file.type};base64,${base64Image}` 
+              } 
+            }
+          ] 
+        }
+      ],
       response_format: { type: 'json_object' },
       max_tokens: 2000,
-      temperature: 0.1, // Low temperature for accurate extraction
+      temperature: 0.1, 
     });
     
     console.log("Raw OCR Response:", ocrResponse.choices[0].message.content);
     
     const ocrContent = JSON.parse(ocrResponse.choices[0].message.content || '{}');
     
-    // Validate and enhance extracted messages
     let extractedMessages: any[] = ocrContent.messages || [];
     
-    // If visual position conflicts with sender identification, use a second pass
+    // Verification pass
     if (ocrContent.confidence !== 'high' || extractedMessages.some((msg: any) => 
       (msg.sender === 'user' && msg.visual_position === 'left') ||
       (msg.sender === 'match' && msg.visual_position === 'right')
     )) {
       console.log("Confidence not high or position mismatch detected. Running verification...");
       
-      const verificationPrompt = `The following messages were extracted from a dating app screenshot, but there may be sender confusion.
+      const verificationPrompt = `The following messages were extracted from a dating app screenshot...
       
 Extracted data:
 ${JSON.stringify(ocrContent, null, 2)}
-
-Based on the visual positions and platform ${ocrContent.platform_detected || 'unknown'}, please verify and correct the senders.
-Remember:
-- On most dating apps, the current user's messages appear on the RIGHT
-- The match's messages appear on the LEFT
-- The person who took the screenshot is the "user"
 
 Return a corrected JSON with just the "messages" array with accurate sender assignments.`;
 
       const verificationResponse = await openai.chat.completions.create({
         model: 'gpt-4o',
-        messages: [{ role: 'user', content: verificationPrompt }],
+        messages: [
+            // Add system message here too just to be safe
+            { role: 'system', content: 'You are a JSON correction assistant.' },
+            { role: 'user', content: verificationPrompt }
+        ],
         response_format: { type: 'json_object' },
         temperature: 0,
       });
@@ -129,7 +148,6 @@ Return a corrected JSON with just the "messages" array with accurate sender assi
       extractedMessages = verified.messages || extractedMessages;
     }
     
-    // Filter out empty messages and format properly
     extractedMessages = extractedMessages.filter((msg: any) => 
       msg.content && msg.content.trim().length > 0
     );
@@ -140,7 +158,6 @@ Return a corrected JSON with just the "messages" array with accurate sender assi
       }, { status: 400 });
     }
     
-    // Convert to proper ChatMessage format with generated IDs and timestamps
     const formattedMessages: ChatMessage[] = extractedMessages.map((msg: any, index: number) => ({
       id: `msg-${Date.now()}-${index}`,
       sender: msg.sender === 'user' ? 'user' : 'match',
@@ -150,12 +167,10 @@ Return a corrected JSON with just the "messages" array with accurate sender assi
 
     console.log(`Extracted ${formattedMessages.length} messages. Starting analysis...`);
 
-    // Perform the contextual analysis
     const analysisResult = await analyzeConversationWithContext(formattedMessages, {
       platform: ocrContent.platform_detected,
     });
 
-    // Add OCR metadata to the analysis
     const enrichedResult = {
       ...analysisResult,
       ocrMetadata: {
@@ -167,7 +182,6 @@ Return a corrected JSON with just the "messages" array with accurate sender assi
       }
     };
 
-    // Save to database
     await supabase.from('analysis_results').insert({
       user_id: user.id,
       risk_score: analysisResult.riskScore,
@@ -186,28 +200,25 @@ Return a corrected JSON with just the "messages" array with accurate sender assi
       } as Json,
     });
     
-    // Increment user's analysis count
     await supabase.rpc('increment_analysis_count', { user_uuid: user.id });
 
     console.log(`Analysis complete. Risk: ${analysisResult.riskScore}%, Trust: ${analysisResult.trustScore}%`);
-    console.log(`Found ${analysisResult.flags.filter(f => f.type === 'red').length} red flags and ${analysisResult.flags.filter(f => f.type === 'green').length} green flags`);
 
     return NextResponse.json({ result: enrichedResult });
 
   } catch (error) {
     console.error('Image analysis error:', error);
     
-    // Provide more specific error messages
     if (error instanceof Error) {
       if (error.message.includes('rate limit')) {
         return NextResponse.json({ 
           error: 'Service is currently busy. Please try again in a moment.' 
         }, { status: 429 });
       }
-      if (error.message.includes('invalid image')) {
-        return NextResponse.json({ 
-          error: 'The image could not be processed. Please ensure it\'s a clear screenshot of a conversation.' 
-        }, { status: 400 });
+      // Handle the specific JSON error if it still somehow happens
+      if (error.message.includes("'messages' must contain the word 'json'")) {
+        console.error("Critical: OpenAI JSON prompt constraint failed.");
+        return NextResponse.json({ error: 'Internal AI Error: JSON constraint.' }, { status: 500 });
       }
     }
     

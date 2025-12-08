@@ -1,3 +1,5 @@
+//src\app\api\chat\sessions\[sessionId]\route.ts
+
 import { createClient } from '@/lib/supabase/server';
 import { NextRequest, NextResponse } from 'next/server';
 
